@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgendaBot · demo</title>
+<meta name="description" content="Prueba el agente de citas de una barbería de ejemplo y mira qué hace el backend en cada mensaje.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Familjen+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --steel: #E6EAEF;      /* fondo: acero de las herramientas */
+    --ink: #16202B;
+    --muted: #556170;
+    --paper: #FFFFFF;
+    --line: #CDD4DC;
+    --pole-blue: #1F55B5;  /* acento: el azul del poste */
+    --pole-red: #B3122B;   /* solo para lo que el backend bloquea */
+    --ok: #146C43;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --display: "Familjen Grotesk", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--steel);
+    color: var(--ink);
+    font: 16px/1.5 var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--pole-blue); }
+  :focus-visible { outline: 3px solid var(--pole-blue); outline-offset: 2px; }
+
+  .page { max-width: 1080px; margin: 0 auto; padding: 32px 16px 48px; }
+
+  header.intro { display: grid; gap: 8px; margin-bottom: 28px; max-width: 62ch; }
+  .brand {
+    font: 700 clamp(2rem, 5vw, 3.25rem)/1 var(--display);
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .brand span { color: var(--pole-blue); }
+  .intro p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 28px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  /* Chat */
+  .chat {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    height: min(680px, 78vh);
+    overflow: hidden;
+  }
+  .chat-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .chat-head strong { font: 700 1.05rem/1.2 var(--display); }
+  .chat-head small { display: block; color: var(--muted); font-size: 0.85rem; }
+  .reset {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.85rem; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0;
+    transition: transform 160ms var(--ease-out), background-color 160ms ease;
+  }
+  .reset:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) { .reset:hover { background: var(--steel); } }
+
+  .messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble {
+    max-width: 82%; padding: 10px 14px; border-radius: 16px;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    transition: opacity 200ms ease, transform 200ms var(--ease-out);
+    @starting-style { opacity: 0; transform: translateY(6px); }
+  }
+  .bubble.agent { align-self: flex-start; background: var(--steel); border-bottom-left-radius: 4px; }
+  .bubble.user { align-self: flex-end; background: var(--pole-blue); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.system { align-self: center; background: none; color: var(--muted); font-size: 0.9rem; text-align: center; }
+  .typing { align-self: flex-start; color: var(--muted); font-size: 0.9rem; padding-left: 4px; }
+
+  .empty { margin: auto 0; color: var(--muted); text-align: center; padding: 0 12px; }
+  .empty strong { display: block; color: var(--ink); font: 700 1.2rem/1.3 var(--display); margin-bottom: 4px; }
+
+  .suggestions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 18px 12px; }
+  .suggestions button {
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+    border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 0.9rem; cursor: pointer;
+    transition: transform 160ms var(--ease-out), border-color 160ms ease;
+  }
+  .suggestions button:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) { .suggestions button:hover { border-color: var(--pole-blue); } }
+
+  form.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  .composer input {
+    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px;
+    padding: 11px 16px; font: inherit; color: var(--ink); background: var(--paper);
+  }
+  .composer input:focus-visible { outline: none; border-color: var(--pole-blue); box-shadow: 0 0 0 3px rgb(31 85 181 / 0.25); }
+  .composer button {
+    border: 0; border-radius: 999px; padding: 0 20px; font: 700 0.95rem var(--body);
+    background: var(--ink); color: #fff; cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms ease;
+  }
+  .composer button:active { transform: scale(0.97); }
+  .composer button:disabled { opacity: 0.5; cursor: default; }
+
+  /* Ticket */
+  .ticket-wrap h2 { font: 700 1.05rem/1.2 var(--display); margin: 4px 0 4px; }
+  .ticket-wrap > p { margin: 0 0 14px; color: var(--muted); font-size: 0.92rem; }
+  .ticket {
+    background: var(--paper);
+    font: 13px/1.55 var(--mono);
+    padding: 22px 18px 26px;
+    /* borde dentado de papel de caja */
+    --tooth: 8px;
+    mask:
+      conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(var(--tooth) * 2) var(--tooth) repeat-x,
+      conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(var(--tooth) * 2) var(--tooth) repeat-x,
+      linear-gradient(#000 0 0) center / 100% calc(100% - var(--tooth) * 2) no-repeat;
+    max-height: min(600px, 70vh);
+    overflow-y: auto;
+  }
+  .ticket .blank { color: var(--muted); text-align: center; margin: 16px 0; }
+  .turn { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .turn:last-child { border-bottom: 0; }
+  .turn {
+    transition: clip-path 260ms var(--ease-out), opacity 260ms ease;
+    clip-path: inset(0 0 0 0);
+    @starting-style { clip-path: inset(0 0 100% 0); opacity: 0.4; }
+  }
+  .turn-head { display: flex; justify-content: space-between; font-weight: 600; letter-spacing: 0.04em; }
+  .turn-head span:last-child { color: var(--muted); font-weight: 400; }
+  .said { color: var(--muted); margin: 2px 0 6px; overflow-wrap: anywhere; }
+  .tool { display: grid; grid-template-columns: 14px 1fr; gap: 0 6px; margin-top: 4px; }
+  .tool .mark { font-weight: 600; color: var(--ok); }
+  .tool.failed .mark { color: var(--pole-red); }
+  .tool .name { font-weight: 600; overflow-wrap: anywhere; }
+  .tool .detail { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
+  .tool.failed .detail { color: var(--pole-red); }
+  .no-tools { color: var(--muted); }
+
+  .rules { margin-top: 18px; font-size: 0.92rem; color: var(--muted); }
+  .rules p { margin: 0 0 8px; }
+  .rules code { font: 0.85em var(--mono); color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bubble, .turn { transition: opacity 150ms ease; transform: none; clip-path: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1 class="brand">Agenda<span>Bot</span></h1>
+    <p>Esta es una barbería de prueba en Santo Domingo atendida por un agente con IA. Escríbele como le escribirías por WhatsApp: pregunta precios, pide un turno o cancélalo. En el ticket del backend aparece lo que hizo el servidor con cada mensaje.</p>
+  </header>
+
+  <main class="layout">
+    <section class="chat" aria-label="Chat con la barbería">
+      <div class="chat-head">
+        <div>
+          <strong>Barbería de prueba</strong>
+          <small>Luis y Andrés · lunes a sábado</small>
+        </div>
+        <button class="reset" type="button" id="reset">Empezar de nuevo</button>
+      </div>
+
+      <div class="messages" id="messages" aria-live="polite">
+        <div class="empty" id="empty">
+          <strong>¿Qué quieres hacer?</strong>
+          Puedes escribir lo que quieras o tocar una de las opciones de abajo.
+        </div>
+      </div>
+
+      <div class="suggestions" id="suggestions">
+        <button type="button">¿Cuánto cuesta un corte?</button>
+        <button type="button">Quiero un corte mañana en la tarde</button>
+        <button type="button">¿Qué citas tengo?</button>
+      </div>
+
+      <form class="composer" id="composer">
+        <label for="text" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Mensaje</label>
+        <input id="text" name="text" autocomplete="off" maxlength="1000" placeholder="Escribe un mensaje…" required>
+        <button type="submit" id="send">Enviar</button>
+      </form>
+    </section>
+
+    <aside class="ticket-wrap" aria-label="Lo que hizo el backend">
+      <h2>Ticket del backend</h2>
+      <p>Cada mensaje imprime las herramientas que usó el agente y lo que le respondió el servidor.</p>
+      <div class="ticket" id="ticket">
+        <p class="blank">— sin movimientos —</p>
+      </div>
+      <div class="rules">
+        <p><code>propose_appointment</code> no agenda nada: solo guarda una propuesta y el agente te pregunta si confirmas.</p>
+        <p><code>confirm_pending</code> solo funciona en el mensaje siguiente al tuyo. Si el modelo intenta confirmar sin que hayas respondido, el servidor lo rechaza y sale en rojo.</p>
+        <p>El código está en <a href="https://github.com/Kelvis123456/agendabot">GitHub</a>.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const messages = $("messages"), ticket = $("ticket"), input = $("text"), send = $("send");
+  let turn = 0, busy = false;
+
+  const newSession = () => {
+    const id = crypto.randomUUID();
+    try { sessionStorage.setItem("agendabot-session", id); } catch {}
+    return id;
+  };
+  let session;
+  try { session = sessionStorage.getItem("agendabot-session"); } catch {}
+  session ||= newSession();
+
+  function bubble(text, who) {
+    $("empty")?.remove();
+    const el = document.createElement("div");
+    el.className = "bubble " + who;
+    el.textContent = text;
+    messages.append(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
+  function summarize(tool) {
+    let data;
+    try { data = JSON.parse(tool.result); } catch { return tool.result; }
+    if (data && data.error) return data.error;
+    if (Array.isArray(data)) {
+      if (tool.name === "list_services") return data.length + " servicios";
+      if (tool.name === "get_availability") return data.length ? data.length + " horarios libres" : "sin horarios libres";
+      if (tool.name === "my_appointments") return data.length ? data.length + " citas próximas" : "sin citas";
+      return data.length + " resultados";
+    }
+    if (data?.resumen) return "pendiente: " + data.resumen;
+    if (data?.agendada) return "cita #" + data.id + " creada";
+    if (data?.cancelada) return "cita cancelada";
+    if (data?.ok) return "guardado";
+    return tool.result;
+  }
+
+  function printTurn(said, tools) {
+    ticket.querySelector(".blank")?.remove();
+    turn++;
+    const block = document.createElement("div");
+    block.className = "turn";
+    const time = new Date().toLocaleTimeString("es-DO", { hour: "numeric", minute: "2-digit" });
+    block.innerHTML = `<div class="turn-head"><span>TURNO ${turn}</span><span>${time}</span></div>`;
+    const s = document.createElement("div");
+    s.className = "said";
+    s.textContent = "> " + said;
+    block.append(s);
+
+    if (!tools.length) {
+      const n = document.createElement("div");
+      n.className = "no-tools";
+      n.textContent = "sin herramientas, solo respondió";
+      block.append(n);
+    }
+    for (const t of tools) {
+      const row = document.createElement("div");
+      row.className = "tool" + (t.failed ? " failed" : "");
+      const mark = document.createElement("span"); mark.className = "mark"; mark.textContent = t.failed ? "×" : "✓";
+      mark.setAttribute("aria-label", t.failed ? "rechazado" : "correcto");
+      const name = document.createElement("span"); name.className = "name"; name.textContent = t.name + (t.arguments ? "(" + t.arguments + ")" : "()");
+      const detail = document.createElement("span"); detail.className = "detail"; detail.textContent = summarize(t);
+      row.append(mark, name, detail);
+      block.append(row);
+    }
+    ticket.append(block);
+    ticket.scrollTop = ticket.scrollHeight;
+  }
+
+  async function say(text) {
+    text = text.trim();
+    if (!text || busy) return;
+    busy = true; send.disabled = true;
+    bubble(text, "user");
+    const typing = document.createElement("div");
+    typing.className = "typing"; typing.textContent = "escribiendo…";
+    messages.append(typing);
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+      const res = await fetch("/demo/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session, text }),
+      });
+      typing.remove();
+      if (res.status === 429) {
+        bubble("Llegaste al límite de mensajes de la demo. Prueba de nuevo en unos minutos.", "system");
+      } else if (!res.ok) {
+        bubble("El servidor respondió con un error (" + res.status + "). Prueba de nuevo.", "system");
+      } else {
+        const data = await res.json();
+        bubble(data.reply, "agent");
+        printTurn(text, data.tools || []);
+      }
+    } catch {
+      typing.remove();
+      bubble("No se pudo conectar con el servidor. Revisa tu conexión y prueba de nuevo.", "system");
+    } finally {
+      busy = false; send.disabled = false; input.focus();
+    }
+  }
+
+  $("composer").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value;
+    input.value = "";
+    say(text);
+  });
+  $("suggestions").addEventListener("click", (e) => {
+    if (e.target instanceof HTMLButtonElement) say(e.target.textContent);
+  });
+  $("reset").addEventListener("click", () => {
+    session = newSession();
+    turn = 0;
+    messages.innerHTML = '<div class="empty" id="empty"><strong>¿Qué quieres hacer?</strong>Conversación nueva: para el agente eres otro cliente.</div>';
+    ticket.innerHTML = '<p class="blank">— sin movimientos —</p>';
+    input.focus();
+  });
+})();
+</script>
+</body>
+</html>

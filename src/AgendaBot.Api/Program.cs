@@ -66,11 +66,24 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy("login", ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = loginPerMinute, Window = TimeSpan.FromMinutes(1) }));
+    // La demo pública gasta tokens del LLM: tope por IP y tope global por día.
+    var perIp = builder.Configuration.GetValue("RateLimits:DemoPerIpPer10Min", 30);
+    var perDay = builder.Configuration.GetValue("RateLimits:DemoPerDay", 300);
+    o.AddPolicy("demo", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = perIp, Window = TimeSpan.FromMinutes(10) }));
+    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        ctx.Request.Path.StartsWithSegments("/demo")
+            ? RateLimitPartition.GetFixedWindowLimiter("demo-global",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = perDay, Window = TimeSpan.FromDays(1) })
+            : RateLimitPartition.GetNoLimiter("resto"));
 });
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
 app.UseRateLimiter();
@@ -95,6 +108,8 @@ app.MapAuth();
 app.MapPublic();
 app.MapAdmin();
 app.MapWhatsApp();
+if (app.Configuration.GetValue("Demo:Enabled", true))
+    app.MapDemo();
 
 app.Run();
 

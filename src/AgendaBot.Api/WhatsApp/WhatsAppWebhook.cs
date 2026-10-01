@@ -158,7 +158,7 @@ public class WhatsAppWorker(Channel<IncomingMessage> queue, IServiceScopeFactory
                 using var scope = scopes.CreateScope();
                 var reply = msg.Text.Length == 0
                     ? WhatsAppWebhook.UnsupportedReply
-                    : await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(msg.From, msg.Text, ct);
+                    : (await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(msg.From, msg.Text, ct)).Text;
                 await scope.ServiceProvider.GetRequiredService<WhatsAppClient>().SendTextAsync(msg.From, reply, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

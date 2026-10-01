@@ -98,7 +98,7 @@ public class AgentTests(ApiFactory api) : IAsyncLifetime
     private async Task<string> Say(string text)
     {
         using var scope = api.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(Phone, text);
+        return (await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(Phone, text)).Text;
     }
 
     private async Task<int> CountAppointments()

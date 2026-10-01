@@ -16,6 +16,11 @@ public class AgentOptions
     public int MaxInputChars { get; set; } = 1000;
 }
 
+// Qué herramientas usó el agente en un turno. La demo web lo muestra; WhatsApp lo ignora.
+public record ToolTrace(string Name, string Arguments, bool Failed, string Result);
+
+public record AgentReply(string Text, IReadOnlyList<ToolTrace> Tools);
+
 public class AgentService(
     AppDbContext db, Customers customers, Availability availability, Booking booking,
     BusinessClock clock, IOptions<BusinessOptions> business, IOptions<AgentOptions> options,
@@ -27,7 +32,7 @@ public class AgentService(
 
     private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-DO");
 
-    public async Task<string> HandleAsync(string phone, string text, CancellationToken ct = default)
+    public async Task<AgentReply> HandleAsync(string phone, string text, CancellationToken ct = default)
     {
         phone = Customers.NormalizePhone(phone);
         var gate = Locks.GetOrAdd(phone, _ => new SemaphoreSlim(1, 1));
@@ -42,9 +47,9 @@ public class AgentService(
         }
     }
 
-    private async Task<string> TurnAsync(string phone, string text, CancellationToken ct)
+    private async Task<AgentReply> TurnAsync(string phone, string text, CancellationToken ct)
     {
-        if (llm is null) return "El asistente no está configurado todavía.";
+        if (llm is null) return new AgentReply("El asistente no está configurado todavía.", []);
         var o = options.Value;
         text = text.Trim();
         if (text.Length > o.MaxInputChars) text = text[..o.MaxInputChars];
@@ -77,10 +82,12 @@ public class AgentService(
             .Build();
 
         string reply;
+        List<ToolTrace> trace = [];
         try
         {
             var response = await client.GetResponseAsync(history,
                 new ChatOptions { ModelId = o.Model, Tools = tools.All() }, ct);
+            trace = Trace(response.Messages);
             reply = string.IsNullOrWhiteSpace(response.Text)
                 ? "Disculpa, no te entendí bien. ¿Me lo repites?"
                 : response.Text.Trim();
@@ -94,7 +101,19 @@ public class AgentService(
         if (reply.Length > 4000) reply = reply[..4000];
         conversation.Messages.Add(new ConversationMessage { Role = "assistant", Text = reply, CreatedAt = clock.Now });
         await db.SaveChangesAsync(ct);
-        return reply;
+        return new AgentReply(reply, trace);
+    }
+
+    private static List<ToolTrace> Trace(IList<ChatMessage> messages)
+    {
+        var contents = messages.SelectMany(m => m.Contents).ToList();
+        var results = contents.OfType<FunctionResultContent>().ToDictionary(r => r.CallId);
+        return contents.OfType<FunctionCallContent>().Select(call =>
+        {
+            var result = results.GetValueOrDefault(call.CallId)?.Result?.ToString() ?? "";
+            var args = call.Arguments is { Count: > 0 } a ? string.Join(", ", a.Select(kv => $"{kv.Key}={kv.Value}")) : "";
+            return new ToolTrace(call.Name, args, result.Contains("\"error\""), result);
+        }).ToList();
     }
 
     private string SystemPrompt(Customer customer)
