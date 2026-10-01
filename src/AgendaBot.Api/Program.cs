@@ -1,9 +1,12 @@
 using System.Threading.RateLimiting;
 using AgendaBot.Api.Admin;
+using AgendaBot.Api.Agent;
+using Anthropic;
 using AgendaBot.Api.Data;
 using AgendaBot.Api.Scheduling;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
@@ -24,6 +27,13 @@ builder.Services.AddSingleton<BusinessClock>();
 builder.Services.AddScoped<Availability>();
 builder.Services.AddScoped<Booking>();
 builder.Services.AddScoped<Customers>();
+
+builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection("Agent"));
+builder.Services.AddScoped<AgentService>();
+// Sin API key la app arranca igual (panel y agenda funcionan); solo el agente queda apagado.
+if (builder.Configuration["Anthropic:ApiKey"] is { Length: > 0 } anthropicKey)
+    builder.Services.AddSingleton<IChatClient>(_ =>
+        new AnthropicClient { ApiKey = anthropicKey }.AsIChatClient(defaultMaxOutputTokens: 1024));
 
 var auth = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
 if (auth.JwtKey.Length < 32)

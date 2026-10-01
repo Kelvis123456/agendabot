@@ -1,7 +1,9 @@
 using AgendaBot.Api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
 
@@ -20,6 +22,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         : null;
 
     public const string AdminPassword = "clave-de-test";
+    public FakeChatClient Llm { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -28,6 +31,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Auth:AdminPassword", AdminPassword);
         builder.UseSetting("Auth:JwtKey", "clave-jwt-de-test-con-mas-de-32-caracteres");
         builder.UseSetting("RateLimits:LoginPerMinute", "1000");
+        builder.ConfigureTestServices(s => s.AddSingleton<IChatClient>(Llm));
     }
 
     public async Task InitializeAsync()
@@ -46,9 +50,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // Cada test arranca con las tablas vacías.
     public async Task ResetAsync()
     {
+        Llm.Reset();
         await using var db = CreateDb();
         await db.Database.ExecuteSqlRawAsync("""
-            DELETE FROM Appointments; DELETE FROM TimeOff; DELETE FROM WorkingHours;
+            DELETE FROM ConversationMessages; DELETE FROM Conversations; DELETE FROM Appointments; DELETE FROM TimeOff; DELETE FROM WorkingHours;
             DELETE FROM Customers; DELETE FROM Staff; DELETE FROM Services;
             """);
     }

@@ -36,6 +36,7 @@ public class Booking(AppDbContext db, BusinessClock clock)
         // Serializable: el SELECT deja un bloqueo de rango sobre (StaffId, Start), así que si dos
         // personas piden el mismo horario a la vez, SQL Server deja pasar a una y a la otra la
         // elige como víctima de deadlock (1205). Eso se traduce en "horario ocupado".
+        Appointment? appointment = null;
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -46,7 +47,7 @@ public class Booking(AppDbContext db, BusinessClock clock)
             var off = await db.TimeOff.AnyAsync(t => t.StaffId == staffId && t.Start < end && start < t.End);
             if (taken || off) return BookingResult.Fail(BookingError.Taken);
 
-            var appointment = new Appointment
+            appointment = new Appointment
             {
                 StaffId = staffId, ServiceId = serviceId, CustomerId = customerId,
                 Start = start, End = end, CreatedAt = clock.Now,
@@ -58,7 +59,8 @@ public class Booking(AppDbContext db, BusinessClock clock)
         }
         catch (Exception ex) when (IsDeadlock(ex))
         {
-            db.ChangeTracker.Clear();
+            // Solo se suelta la cita fallida; el resto del contexto (ej. la conversación del agente) sigue vivo.
+            if (appointment is not null) db.Entry(appointment).State = EntityState.Detached;
             return BookingResult.Fail(BookingError.Taken);
         }
     }

@@ -10,6 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TimeOff> TimeOff => Set<TimeOff>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -41,6 +43,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.CustomerId);
             e.HasOne(x => x.Service).WithMany().OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Customer).WithMany().OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Conversation>(e =>
+        {
+            e.HasIndex(x => x.CustomerId).IsUnique();
+            e.Property(x => x.PendingKind).HasMaxLength(20);
+            e.Property(x => x.PendingJson).HasMaxLength(500);
+        });
+
+        b.Entity<ConversationMessage>(e =>
+        {
+            e.Property(x => x.Role).HasMaxLength(10);
+            e.Property(x => x.Text).HasMaxLength(4000);
+            e.HasIndex(x => new { x.ConversationId, x.Id });
         });
     }
 }

@@ -64,3 +64,29 @@ public class Appointment
     public DateTime? ReminderSentAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+// Una conversación por cliente. Solo se guarda el texto que se ve en el chat; las llamadas
+// a herramientas de cada turno no se persisten.
+public class Conversation
+{
+    public int Id { get; set; }
+    public int CustomerId { get; set; }
+    public Customer Customer { get; set; } = null!;
+    public DateTime UpdatedAt { get; set; }
+    public List<ConversationMessage> Messages { get; set; } = [];
+
+    // Acción propuesta por el agente que espera el "sí" del cliente.
+    public string? PendingKind { get; set; }
+    public string? PendingJson { get; set; }
+    public int? PendingAfterMessageId { get; set; }
+    public DateTime? PendingAt { get; set; }
+}
+
+public class ConversationMessage
+{
+    public int Id { get; set; }
+    public int ConversationId { get; set; }
+    public required string Role { get; set; } // "user" | "assistant"
+    public required string Text { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
