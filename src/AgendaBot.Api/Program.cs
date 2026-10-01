@@ -42,6 +42,9 @@ builder.Services.AddHttpClient<WhatsAppClient>();
 builder.Services.AddSingleton(Channel.CreateBounded<IncomingMessage>(1000));
 builder.Services.AddSingleton<PhoneRateLimiter>();
 builder.Services.AddHostedService<WhatsAppWorker>();
+builder.Services.Configure<ReminderOptions>(builder.Configuration.GetSection("Reminders"));
+builder.Services.AddScoped<Reminders>();
+builder.Services.AddHostedService<ReminderWorker>();
 
 var auth = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
 if (auth.JwtKey.Length < 32)
