@@ -1,5 +1,10 @@
+using System.Threading.RateLimiting;
+using AgendaBot.Api.Admin;
 using AgendaBot.Api.Data;
+using AgendaBot.Api.Scheduling;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,11 +19,42 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 builder.Services.AddSingleton(TimeProvider.System);
 
+builder.Services.Configure<BusinessOptions>(builder.Configuration.GetSection("Business"));
+builder.Services.AddSingleton<BusinessClock>();
+builder.Services.AddScoped<Availability>();
+builder.Services.AddScoped<Booking>();
+builder.Services.AddScoped<Customers>();
+
+var auth = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
+if (auth.JwtKey.Length < 32)
+    throw new InvalidOperationException("Auth:JwtKey tiene que tener al menos 32 caracteres.");
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o => o.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        IssuerSigningKey = Auth.SigningKey(auth),
+    });
+builder.Services.AddAuthorization();
+
+var loginPerMinute = builder.Configuration.GetValue("RateLimits:LoginPerMinute", 5);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("login", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = loginPerMinute, Window = TimeSpan.FromMinutes(1) }));
+});
+
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
@@ -26,9 +62,17 @@ if (app.Environment.IsDevelopment())
 // Migrar al arrancar alcanza con una sola instancia; con varias réplicas,
 // pasar a un paso de migración en el deploy.
 using (var scope = app.Services.CreateScope())
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+    if (app.Configuration.GetValue<bool>("Seed:Demo"))
+        await DemoSeed.RunAsync(db);
+}
 
 app.MapHealthChecks("/health");
+app.MapAuth();
+app.MapPublic();
+app.MapAdmin();
 
 app.Run();
 

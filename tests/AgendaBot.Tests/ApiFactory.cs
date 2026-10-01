@@ -19,10 +19,15 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         ? new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build()
         : null;
 
+    public const string AdminPassword = "clave-de-test";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Default", LocalSql ?? _sql!.GetConnectionString());
+        builder.UseSetting("Auth:AdminPassword", AdminPassword);
+        builder.UseSetting("Auth:JwtKey", "clave-jwt-de-test-con-mas-de-32-caracteres");
+        builder.UseSetting("RateLimits:LoginPerMinute", "1000");
     }
 
     public async Task InitializeAsync()
