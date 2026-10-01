@@ -1,0 +1,14 @@
+# Solo para desarrollo local. La contraseña es la misma de appsettings.Development.json.
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "AgendaBot_dev1"
+    ports:
+      - "1434:1433"  # 1433 suele estar ocupado por un SQL Server local
+    volumes:
+      - sqldata:/var/opt/mssql
+
+volumes:
+  sqldata:
