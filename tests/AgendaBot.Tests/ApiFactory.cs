@@ -26,6 +26,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public const string WhatsAppSecret = "secreto-de-la-app";
     public const string WhatsAppVerifyToken = "token-de-verificacion";
     public FakeChatClient Llm { get; } = new();
+
+    // Las evals usan el modelo real; el resto de la suite, el falso.
+    protected virtual string? RealLlmKey => null;
     public FakeWhatsApp WhatsApp { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -39,9 +42,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("WhatsApp:VerifyToken", WhatsAppVerifyToken);
         builder.UseSetting("WhatsApp:AccessToken", "token-de-acceso");
         builder.UseSetting("WhatsApp:PhoneNumberId", "123456");
+        if (RealLlmKey is { } key) builder.UseSetting("Anthropic:ApiKey", key);
         builder.ConfigureTestServices(s =>
         {
-            s.AddSingleton<IChatClient>(Llm);
+            if (RealLlmKey is null) s.AddSingleton<IChatClient>(Llm);
             s.AddHttpClient<WhatsAppClient>().ConfigurePrimaryHttpMessageHandler(() => WhatsApp)
                 .SetHandlerLifetime(Timeout.InfiniteTimeSpan); // el fake es una sola instancia, que no lo desechen
         });
@@ -75,3 +79,11 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
 [CollectionDefinition("api")]
 public class ApiCollection : ICollectionFixture<ApiFactory>;
+
+public class EvalFactory : ApiFactory
+{
+    protected override string? RealLlmKey => Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+}
+
+[CollectionDefinition("eval")]
+public class EvalCollection : ICollectionFixture<EvalFactory>;
