@@ -92,18 +92,18 @@ public static class WhatsAppWebhook
         if (!doc.RootElement.TryGetProperty("entry", out var entries)) return result;
 
         foreach (var entry in entries.EnumerateArray())
-        foreach (var change in entry.GetProperty("changes").EnumerateArray())
-        {
-            // Los avisos de "entregado"/"leído" llegan sin "messages" y se ignoran.
-            if (!change.GetProperty("value").TryGetProperty("messages", out var messages)) continue;
-            foreach (var m in messages.EnumerateArray())
+            foreach (var change in entry.GetProperty("changes").EnumerateArray())
             {
-                var text = m.GetProperty("type").GetString() == "text"
-                    ? m.GetProperty("text").GetProperty("body").GetString()
-                    : null;
-                result.Add((m.GetProperty("id").GetString()!, m.GetProperty("from").GetString()!, text));
+                // Los avisos de "entregado"/"leído" llegan sin "messages" y se ignoran.
+                if (!change.GetProperty("value").TryGetProperty("messages", out var messages)) continue;
+                foreach (var m in messages.EnumerateArray())
+                {
+                    var text = m.GetProperty("type").GetString() == "text"
+                        ? m.GetProperty("text").GetProperty("body").GetString()
+                        : null;
+                    result.Add((m.GetProperty("id").GetString()!, m.GetProperty("from").GetString()!, text));
+                }
             }
-        }
         return result;
     }
 

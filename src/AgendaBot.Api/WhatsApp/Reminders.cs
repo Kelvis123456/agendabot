@@ -64,7 +64,8 @@ public class Reminders(AppDbContext db, WhatsAppClient whatsapp, BusinessClock c
             }
             conversation.Messages.Add(new ConversationMessage
             {
-                Role = "assistant", CreatedAt = now,
+                Role = "assistant",
+                CreatedAt = now,
                 Text = $"Recordatorio enviado: cita de {a.Service.Name} {when} (id {a.Id}).",
             });
             await db.SaveChangesAsync(ct);

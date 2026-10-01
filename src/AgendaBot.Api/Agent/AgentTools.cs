@@ -46,7 +46,7 @@ public class AgentTools(
         if (d < clock.Today) return Error("Esa fecha ya pasó.");
         var slots = await availability.GetSlotsAsync(serviceId, d, staffId);
         if (slots is null) return Error("Ese servicio no existe.");
-        return slots.Select(s => new { s.StaffId, s.StaffName, start = s.Start.ToString("yyyy-MM-ddTHH:mm") });
+        return slots.Select(s => new { s.StaffId, s.StaffName, start = s.Start.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture) });
     }
 
     [Description("Próximas citas del cliente que está escribiendo.")]

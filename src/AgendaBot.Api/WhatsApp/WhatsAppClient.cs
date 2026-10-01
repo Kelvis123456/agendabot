@@ -24,7 +24,9 @@ public class WhatsAppClient(HttpClient http, IOptions<WhatsAppOptions> options, 
     public Task SendTemplateAsync(string to, string template, string language, IEnumerable<string> parameters, CancellationToken ct = default) =>
         SendAsync(new
         {
-            messaging_product = "whatsapp", to, type = "template",
+            messaging_product = "whatsapp",
+            to,
+            type = "template",
             template = new
             {
                 name = template,

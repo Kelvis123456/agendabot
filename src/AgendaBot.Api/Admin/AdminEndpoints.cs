@@ -76,7 +76,7 @@ public static class AdminEndpoints
             if (!await db.Staff.AnyAsync(s => s.Id == id)) return Results.NotFound();
             if (hours.Any(h => h.Open >= h.Close))
                 return Results.ValidationProblem(new Dictionary<string, string[]>
-                    { ["hours"] = ["La hora de apertura tiene que ser antes del cierre."] });
+                { ["hours"] = ["La hora de apertura tiene que ser antes del cierre."] });
 
             await db.WorkingHours.Where(h => h.StaffId == id).ExecuteDeleteAsync();
             db.WorkingHours.AddRange(hours.Select(h =>
@@ -90,7 +90,7 @@ public static class AdminEndpoints
             if (!await db.Staff.AnyAsync(s => s.Id == id)) return Results.NotFound();
             if (req.Start >= req.End)
                 return Results.ValidationProblem(new Dictionary<string, string[]>
-                    { ["end"] = ["El fin tiene que ser después del inicio."] });
+                { ["end"] = ["El fin tiene que ser después del inicio."] });
 
             var t = new TimeOff { StaffId = id, Start = req.Start, End = req.End, Reason = req.Reason };
             db.TimeOff.Add(t);
@@ -107,9 +107,14 @@ public static class AdminEndpoints
                 .OrderBy(a => a.Start)
                 .Select(a => new
                 {
-                    a.Id, a.Start, a.End, Status = a.Status.ToString(),
-                    Staff = a.Staff.Name, Service = a.Service.Name,
-                    Customer = a.Customer.Name, a.Customer.Phone,
+                    a.Id,
+                    a.Start,
+                    a.End,
+                    Status = a.Status.ToString(),
+                    Staff = a.Staff.Name,
+                    Service = a.Service.Name,
+                    Customer = a.Customer.Name,
+                    a.Customer.Phone,
                 })
                 .ToListAsync();
         });

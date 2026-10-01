@@ -49,8 +49,12 @@ public class Booking(AppDbContext db, BusinessClock clock)
 
             appointment = new Appointment
             {
-                StaffId = staffId, ServiceId = serviceId, CustomerId = customerId,
-                Start = start, End = end, CreatedAt = clock.Now,
+                StaffId = staffId,
+                ServiceId = serviceId,
+                CustomerId = customerId,
+                Start = start,
+                End = end,
+                CreatedAt = clock.Now,
             };
             db.Appointments.Add(appointment);
             await db.SaveChangesAsync();
