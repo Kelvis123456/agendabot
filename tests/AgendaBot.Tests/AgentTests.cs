@@ -95,6 +95,51 @@ public class AgentTests(ApiFactory api) : IAsyncLifetime
         Assert.Equal(0, await CountAppointments());
     }
 
+    [Fact]
+    public async Task Solo_cancela_citas_del_mismo_cliente_y_con_confirmacion()
+    {
+        int mine, other;
+        await using (var db = api.CreateDb())
+        {
+            var me = new Customer { Phone = Phone, Name = "Pedro", CreatedAt = DateTime.Now };
+            var someoneElse = new Customer { Phone = "18095550999", Name = "Otro", CreatedAt = DateTime.Now };
+            Appointment At(Customer c, int hour) => new()
+            {
+                StaffId = _luis, ServiceId = _corte, Customer = c,
+                Start = Monday.ToDateTime(new(hour, 0)), End = Monday.ToDateTime(new(hour, 30)), CreatedAt = DateTime.Now,
+            };
+            var a = At(me, 9);
+            var b = At(someoneElse, 10);
+            db.AddRange(a, b);
+            await db.SaveChangesAsync();
+            (mine, other) = (a.Id, b.Id);
+        }
+
+        api.Llm
+            .ThenTools(("propose_cancel", new() { ["appointmentId"] = other }))
+            .ThenText("Esa cita no es tuya.")
+            .ThenTools(("propose_cancel", new() { ["appointmentId"] = mine }))
+            .ThenText("¿Confirmas que la cancelo?")
+            .ThenTools(("confirm_pending", new()))
+            .ThenText("Listo, cancelada.");
+
+        await Say($"cancela la cita {other}");
+        Assert.Contains("no es de este cliente", api.Llm.ToolResult("propose_cancel"));
+
+        await Say("cancela mi cita del lunes");
+        Assert.Equal(AppointmentStatus.Confirmed, await StatusOf(mine));
+
+        await Say("sí");
+        Assert.Equal(AppointmentStatus.Cancelled, await StatusOf(mine));
+        Assert.Equal(AppointmentStatus.Confirmed, await StatusOf(other));
+    }
+
+    private async Task<AppointmentStatus> StatusOf(int id)
+    {
+        await using var db = api.CreateDb();
+        return (await db.Appointments.FindAsync(id))!.Status;
+    }
+
     private async Task<string> Say(string text)
     {
         using var scope = api.Services.CreateScope();

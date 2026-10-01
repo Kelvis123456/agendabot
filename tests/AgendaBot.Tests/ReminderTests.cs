@@ -24,8 +24,12 @@ public class ReminderTests(ApiFactory api) : IAsyncLifetime
         var now = DateTime.Now;
         Appointment At(double hoursFromNow, AppointmentStatus status = AppointmentStatus.Confirmed, double createdHoursAgo = 48) => new()
         {
-            StaffId = staff.Id, ServiceId = service.Id, CustomerId = ana.Id, Status = status,
-            Start = now.AddHours(hoursFromNow), End = now.AddHours(hoursFromNow).AddMinutes(30),
+            StaffId = staff.Id,
+            ServiceId = service.Id,
+            CustomerId = ana.Id,
+            Status = status,
+            Start = now.AddHours(hoursFromNow),
+            End = now.AddHours(hoursFromNow).AddMinutes(30),
             CreatedAt = now.AddHours(-createdHoursAgo),
         };
         var soon = At(20);
@@ -59,6 +63,18 @@ public class ReminderTests(ApiFactory api) : IAsyncLifetime
         // Queda en la conversación para que el agente entienda un "cancela" como respuesta.
         var msg = await db.ConversationMessages.SingleAsync();
         Assert.Contains($"id {_soon}", msg.Text);
+    }
+
+    [Fact]
+    public async Task Si_WhatsApp_falla_no_se_marca_y_se_reintenta_despues()
+    {
+        api.WhatsApp.Status = System.Net.HttpStatusCode.InternalServerError;
+        Assert.Equal(0, await Run());
+        await using (var db = api.CreateDb())
+            Assert.Null((await db.Appointments.FindAsync(_soon))!.ReminderSentAt);
+
+        api.WhatsApp.Status = System.Net.HttpStatusCode.OK;
+        Assert.Equal(1, await Run());
     }
 
     private async Task<int> Run()

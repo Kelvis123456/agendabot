@@ -178,8 +178,12 @@ public class Evals(EvalFactory api) : IAsyncLifetime
                        ?? new Customer { Phone = _phone, Name = "Cliente", CreatedAt = DateTime.Now };
         var a = new Appointment
         {
-            StaffId = staffId, ServiceId = _corte, Customer = customer,
-            Start = start, End = start.AddMinutes(30), CreatedAt = DateTime.Now,
+            StaffId = staffId,
+            ServiceId = _corte,
+            Customer = customer,
+            Start = start,
+            End = start.AddMinutes(30),
+            CreatedAt = DateTime.Now,
         };
         db.Appointments.Add(a);
         await db.SaveChangesAsync();

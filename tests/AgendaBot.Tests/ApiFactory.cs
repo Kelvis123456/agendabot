@@ -69,6 +69,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         Llm.Reset();
         WhatsApp.Sent.Clear();
+        WhatsApp.Status = System.Net.HttpStatusCode.OK;
         await using var db = CreateDb();
         await db.Database.ExecuteSqlRawAsync("""
             DELETE FROM ProcessedWhatsAppMessages; DELETE FROM ConversationMessages; DELETE FROM Conversations; DELETE FROM Appointments; DELETE FROM TimeOff; DELETE FROM WorkingHours;

@@ -104,9 +104,65 @@ public class BookingTests(ApiFactory api) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
     }
 
+    [Fact]
+    public async Task Un_dia_libre_saca_esos_horarios_y_bloquea_la_reserva()
+    {
+        var http = await api.AdminClientAsync();
+        var off = await http.PostAsJsonAsync($"/admin/staff/{_luis}/timeoff", new
+        {
+            start = Monday.ToDateTime(new(9, 0)), end = Monday.ToDateTime(new(10, 0)), reason = "médico",
+        });
+        Assert.Equal(HttpStatusCode.Created, off.StatusCode);
+
+        var slots = await Slots(http);
+        Assert.DoesNotContain(slots, s => s.StaffId == _luis && s.Start.Hour == 9);
+        Assert.Contains(slots, s => s.StaffId == _luis && s.Start.Hour == 10);
+
+        var res = await http.PostAsJsonAsync("/admin/appointments", Request(_luis, 9.5));
+        Assert.Equal(HttpStatusCode.Conflict, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Rechaza_reservas_en_el_pasado_y_rangos_invertidos()
+    {
+        var http = await api.AdminClientAsync();
+        var lastMonday = Monday.AddDays(-14);
+        var past = await http.PostAsJsonAsync("/admin/appointments", new
+        {
+            staffId = _luis, serviceId = _corte, customerPhone = "18095550001",
+            start = lastMonday.ToDateTime(new(10, 0)),
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, past.StatusCode);
+
+        var badHours = await http.PutAsJsonAsync($"/admin/staff/{_luis}/hours",
+            new[] { new { day = "Monday", open = "12:00", close = "09:00" } });
+        Assert.Equal(HttpStatusCode.BadRequest, badHours.StatusCode);
+
+        var badOff = await http.PostAsJsonAsync($"/admin/staff/{_luis}/timeoff",
+            new { start = Monday.ToDateTime(new(11, 0)), end = Monday.ToDateTime(new(10, 0)) });
+        Assert.Equal(HttpStatusCode.BadRequest, badOff.StatusCode);
+    }
+
+    [Fact]
+    public async Task Cambiar_el_horario_semanal_cambia_la_disponibilidad()
+    {
+        var http = await api.AdminClientAsync();
+        var res = await http.PutAsJsonAsync($"/admin/staff/{_luis}/hours",
+            new[] { new { day = "Monday", open = "14:00", close = "15:00" } });
+        Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
+
+        var luis = (await Slots(http)).Where(s => s.StaffId == _luis).Select(s => s.Start.Hour).Distinct().ToList();
+        Assert.Equal([14], luis);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await http.PutAsJsonAsync("/admin/staff/999999/hours", Array.Empty<object>())).StatusCode);
+    }
+
     private object Request(int staffId, double hour, string phone = "18095550001") => new
     {
-        staffId, serviceId = _corte, customerPhone = phone, customerName = "Cliente",
+        staffId,
+        serviceId = _corte,
+        customerPhone = phone,
+        customerName = "Cliente",
         start = Monday.ToDateTime(TimeOnly.MinValue).AddHours(hour),
     };
 

@@ -8,12 +8,13 @@ namespace AgendaBot.Tests;
 public class FakeWhatsApp : HttpMessageHandler
 {
     public ConcurrentQueue<(string Url, JsonElement Body)> Sent { get; } = new();
+    public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var json = await request.Content!.ReadAsStringAsync(ct);
         Sent.Enqueue((request.RequestUri!.ToString(), JsonDocument.Parse(json).RootElement.Clone()));
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
+        return new HttpResponseMessage(Status) { Content = new StringContent("{}") };
     }
 
     // El webhook procesa en segundo plano, así que los tests esperan a que llegue el envío.
