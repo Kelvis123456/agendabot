@@ -10,7 +10,8 @@ namespace AgendaBot.Api.Agent;
 
 public class AgentOptions
 {
-    public string Model { get; set; } = "claude-haiku-4-5";
+    // null = el modelo por defecto del proveedor configurado (ver Program.cs).
+    public string? Model { get; set; }
     public int HistoryMessages { get; set; } = 20;
     public int MaxToolIterations { get; set; } = 6;
     public int MaxInputChars { get; set; } = 1000;

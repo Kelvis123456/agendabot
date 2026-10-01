@@ -2,25 +2,28 @@ using AgendaBot.Api.Agent;
 using AgendaBot.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit.Abstractions;
 
 namespace AgendaBot.Tests;
 
-// Corre solo si hay ANTHROPIC_API_KEY. Gasta tokens reales (centavos con Haiku), así que no va en CI.
+// Corre solo con AGENDABOT_EVALS=1 y GEMINI_API_KEY o ANTHROPIC_API_KEY. Usa el modelo real (cuota o tokens), así que no va en CI.
 public sealed class EvalFactAttribute : FactAttribute
 {
     public EvalFactAttribute()
     {
-        if (Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") is not { Length: > 0 })
-            Skip = "Eval contra el modelo real: define ANTHROPIC_API_KEY para correrla.";
+        // Opt-in explícito: la key puede estar en el entorno por otras herramientas y no queremos
+        // gastar cuota en cada dotnet test.
+        if (Environment.GetEnvironmentVariable("AGENDABOT_EVALS") != "1" || EvalFactory.FromEnvironment() is null)
+            Skip = "Eval contra el modelo real: AGENDABOT_EVALS=1 y GEMINI_API_KEY o ANTHROPIC_API_KEY.";
     }
 }
 
 // Conversaciones guionadas contra el modelo de verdad. Se califica por lo que quedó en la base
 // (citas, propuesta pendiente), no por el texto exacto, que cambia de una corrida a otra.
-// Correr con: dotnet test --filter "Category=Eval"
+// Correr con: AGENDABOT_EVALS=1 dotnet test --filter "Category=Eval"
 [Collection("eval")]
 [Trait("Category", "Eval")]
-public class Evals(EvalFactory api) : IAsyncLifetime
+public class Evals(EvalFactory api, ITestOutputHelper output) : IAsyncLifetime
 {
     private static readonly DateOnly Monday = NextWeekday(DayOfWeek.Monday);
     private int _corte, _luis, _andres;
@@ -165,10 +168,28 @@ public class Evals(EvalFactory api) : IAsyncLifetime
         Assert.Contains(r.Tools, t => t.Name == "list_services");
     }
 
+    // El plan gratis de Gemini limita las peticiones por minuto y cada turno hace 2-4. Con esta
+    // pausa entre turnos la suite completa entra en la cuota (AGENDABOT_EVAL_DELAY=0 para quitarla).
+    private static readonly TimeSpan TurnGap = TimeSpan.FromSeconds(
+        int.TryParse(Environment.GetEnvironmentVariable("AGENDABOT_EVAL_DELAY"), out var s) ? s : 15);
+    private static DateTime _lastTurn = DateTime.MinValue;
+
     private async Task<AgentReply> Say(string text)
     {
+        var wait = _lastTurn + TurnGap - DateTime.UtcNow;
+        if (wait > TimeSpan.Zero) await Task.Delay(wait);
+        _lastTurn = DateTime.UtcNow;
         using var scope = api.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(_phone, text);
+        var reply = await scope.ServiceProvider.GetRequiredService<AgentService>().HandleAsync(_phone, text);
+        // Si una eval falla, la salida del test muestra la conversación y las herramientas usadas.
+        output.WriteLine($"> {text}");
+        foreach (var t in reply.Tools)
+        {
+            var result = t.Result.ReplaceLineEndings(" ");
+            output.WriteLine($"    {(t.Failed ? "x" : "ok")} {t.Name}({t.Arguments}) -> {result[..Math.Min(160, result.Length)]}");
+        }
+        output.WriteLine($"< {reply.Text}");
+        return reply;
     }
 
     private async Task<int> Book(int staffId, DateTime start)
