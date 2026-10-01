@@ -1,4 +1,5 @@
 using AgendaBot.Api.Data;
+using AgendaBot.Api.WhatsApp;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -22,7 +23,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         : null;
 
     public const string AdminPassword = "clave-de-test";
+    public const string WhatsAppSecret = "secreto-de-la-app";
+    public const string WhatsAppVerifyToken = "token-de-verificacion";
     public FakeChatClient Llm { get; } = new();
+    public FakeWhatsApp WhatsApp { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -31,7 +35,16 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Auth:AdminPassword", AdminPassword);
         builder.UseSetting("Auth:JwtKey", "clave-jwt-de-test-con-mas-de-32-caracteres");
         builder.UseSetting("RateLimits:LoginPerMinute", "1000");
-        builder.ConfigureTestServices(s => s.AddSingleton<IChatClient>(Llm));
+        builder.UseSetting("WhatsApp:AppSecret", WhatsAppSecret);
+        builder.UseSetting("WhatsApp:VerifyToken", WhatsAppVerifyToken);
+        builder.UseSetting("WhatsApp:AccessToken", "token-de-acceso");
+        builder.UseSetting("WhatsApp:PhoneNumberId", "123456");
+        builder.ConfigureTestServices(s =>
+        {
+            s.AddSingleton<IChatClient>(Llm);
+            s.AddHttpClient<WhatsAppClient>().ConfigurePrimaryHttpMessageHandler(() => WhatsApp)
+                .SetHandlerLifetime(Timeout.InfiniteTimeSpan); // el fake es una sola instancia, que no lo desechen
+        });
     }
 
     public async Task InitializeAsync()
@@ -51,9 +64,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public async Task ResetAsync()
     {
         Llm.Reset();
+        WhatsApp.Sent.Clear();
         await using var db = CreateDb();
         await db.Database.ExecuteSqlRawAsync("""
-            DELETE FROM ConversationMessages; DELETE FROM Conversations; DELETE FROM Appointments; DELETE FROM TimeOff; DELETE FROM WorkingHours;
+            DELETE FROM ProcessedWhatsAppMessages; DELETE FROM ConversationMessages; DELETE FROM Conversations; DELETE FROM Appointments; DELETE FROM TimeOff; DELETE FROM WorkingHours;
             DELETE FROM Customers; DELETE FROM Staff; DELETE FROM Services;
             """);
     }

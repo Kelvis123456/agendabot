@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<ProcessedWhatsAppMessage> ProcessedWhatsAppMessages => Set<ProcessedWhatsAppMessage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -57,6 +58,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Role).HasMaxLength(10);
             e.Property(x => x.Text).HasMaxLength(4000);
             e.HasIndex(x => new { x.ConversationId, x.Id });
+        });
+
+        b.Entity<ProcessedWhatsAppMessage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(128);
         });
     }
 }

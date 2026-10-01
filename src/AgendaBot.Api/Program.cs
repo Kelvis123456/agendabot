@@ -4,6 +4,8 @@ using AgendaBot.Api.Agent;
 using Anthropic;
 using AgendaBot.Api.Data;
 using AgendaBot.Api.Scheduling;
+using AgendaBot.Api.WhatsApp;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -34,6 +36,12 @@ builder.Services.AddScoped<AgentService>();
 if (builder.Configuration["Anthropic:ApiKey"] is { Length: > 0 } anthropicKey)
     builder.Services.AddSingleton<IChatClient>(_ =>
         new AnthropicClient { ApiKey = anthropicKey }.AsIChatClient(defaultMaxOutputTokens: 1024));
+
+builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection("WhatsApp"));
+builder.Services.AddHttpClient<WhatsAppClient>();
+builder.Services.AddSingleton(Channel.CreateBounded<IncomingMessage>(1000));
+builder.Services.AddSingleton<PhoneRateLimiter>();
+builder.Services.AddHostedService<WhatsAppWorker>();
 
 var auth = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
 if (auth.JwtKey.Length < 32)
@@ -83,6 +91,7 @@ app.MapHealthChecks("/health");
 app.MapAuth();
 app.MapPublic();
 app.MapAdmin();
+app.MapWhatsApp();
 
 app.Run();
 

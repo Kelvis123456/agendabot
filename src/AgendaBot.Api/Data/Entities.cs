@@ -90,3 +90,11 @@ public class ConversationMessage
     public required string Text { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+// Ids de mensajes de WhatsApp ya recibidos. Meta reintenta el webhook si no recibe 200 a tiempo,
+// así que el mismo mensaje puede llegar más de una vez.
+public class ProcessedWhatsAppMessage
+{
+    public required string Id { get; set; }
+    public DateTime ReceivedAt { get; set; }
+}
