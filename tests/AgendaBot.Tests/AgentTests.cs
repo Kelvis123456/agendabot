@@ -68,6 +68,57 @@ public class AgentTests(ApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Volver_a_proponer_lo_mismo_al_recibir_el_si_no_bloquea_la_confirmacion()
+    {
+        // Lo que hizo Gemini en las evals: en el turno del "sí" propone otra vez lo mismo y confirma.
+        api.Llm
+            .ThenTools(("set_name", new() { ["name"] = "María" }), ("propose_appointment", ProposeArgs()))
+            .ThenText("¿Confirmas?")
+            .ThenTools(("propose_appointment", ProposeArgs()), ("confirm_pending", new()))
+            .ThenText("Listo.");
+
+        await Say("Corte el lunes a las 10 con Luis, soy María");
+        await Say("sí");
+
+        Assert.Contains("agendada", api.Llm.ToolResult("confirm_pending"));
+        Assert.Equal(1, await CountAppointments());
+    }
+
+    [Fact]
+    public async Task Cambiar_la_propuesta_y_confirmar_en_el_mismo_turno_sigue_bloqueado()
+    {
+        api.Llm
+            .ThenTools(("set_name", new() { ["name"] = "María" }), ("propose_appointment", ProposeArgs()))
+            .ThenText("¿Confirmas?")
+            .ThenTools(("propose_appointment", ProposeArgs(Monday.ToDateTime(new(11, 0)).ToString("yyyy-MM-ddTHH:mm"))), ("confirm_pending", new()))
+            .ThenText("Listo.");
+
+        await Say("Corte el lunes a las 10 con Luis, soy María");
+        await Say("mejor a las 11");
+
+        Assert.Contains("todavía no respondió", api.Llm.ToolResult("confirm_pending"));
+        Assert.Equal(0, await CountAppointments());
+    }
+
+    [Fact]
+    public async Task El_prompt_del_turno_siguiente_incluye_la_propuesta_pendiente()
+    {
+        api.Llm
+            .ThenTools(("set_name", new() { ["name"] = "María" }), ("propose_appointment", ProposeArgs()))
+            .ThenText("¿Confirmas?")
+            .ThenText("¿Algo más?");
+
+        await Say("Corte el lunes a las 10 con Luis, soy María");
+        Assert.Contains("No hay ninguna propuesta pendiente", SystemPromptOf(0));
+
+        await Say("una pregunta");
+        Assert.Contains("Propuesta pendiente que ya le mostraste al cliente: Corte con Luis", SystemPromptOf(^1));
+    }
+
+    private string SystemPromptOf(Index call) =>
+        api.Llm.Calls[call].First(m => m.Role == Microsoft.Extensions.AI.ChatRole.System).Text;
+
+    [Fact]
     public async Task No_deja_proponer_un_horario_ocupado_ni_sin_nombre()
     {
         api.Llm

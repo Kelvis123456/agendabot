@@ -35,10 +35,20 @@ builder.Services.AddScoped<Customers>();
 
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection("Agent"));
 builder.Services.AddScoped<AgentService>();
-// Sin API key la app arranca igual (panel y agenda funcionan); solo el agente queda apagado.
-if (builder.Configuration["Anthropic:ApiKey"] is { Length: > 0 } anthropicKey)
+// El agente usa el primer proveedor con key: Gemini (tiene plan gratis) o Claude.
+// Sin ninguna, la app arranca igual (panel y agenda funcionan); solo el agente queda apagado.
+if (builder.Configuration["Gemini:ApiKey"] is { Length: > 0 } geminiKey)
+    // SDK oficial de Google: a diferencia del endpoint compatible con OpenAI, devuelve la
+    // "thought signature" de cada tool call, que Gemini 3 exige para seguir la conversación.
+    // flash-lite es el que pasó las evals dentro del plan gratis (gemini-2.5-flash ya no se ofrece
+    // a cuentas nuevas y gemini-3-flash-preview tiene una cuota diaria muy chica). Se cambia con Agent:Model.
     builder.Services.AddSingleton<IChatClient>(_ =>
-        new AnthropicClient { ApiKey = anthropicKey }.AsIChatClient(defaultMaxOutputTokens: 1024));
+        new Google.GenAI.Client(apiKey: geminiKey)
+            .AsIChatClient(builder.Configuration["Agent:Model"] ?? "gemini-flash-lite-latest"));
+else if (builder.Configuration["Anthropic:ApiKey"] is { Length: > 0 } anthropicKey)
+    builder.Services.AddSingleton<IChatClient>(_ =>
+        new AnthropicClient { ApiKey = anthropicKey }.AsIChatClient(
+            builder.Configuration["Agent:Model"] ?? "claude-haiku-4-5", defaultMaxOutputTokens: 1024));
 
 builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection("WhatsApp"));
 builder.Services.AddHttpClient<WhatsAppClient>();
@@ -84,7 +94,11 @@ builder.Services.AddRateLimiter(o =>
 
 var app = builder.Build();
 
-app.UseExceptionHandler();
+// Un JSON mal formado es error del cliente (400), no del servidor.
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    StatusCodeSelector = ex => ex is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError,
+});
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseStatusCodePages();

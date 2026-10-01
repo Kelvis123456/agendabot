@@ -10,7 +10,8 @@ namespace AgendaBot.Api.Agent;
 
 public class AgentOptions
 {
-    public string Model { get; set; } = "claude-haiku-4-5";
+    // null = el modelo por defecto del proveedor configurado (ver Program.cs).
+    public string? Model { get; set; }
     public int HistoryMessages { get; set; } = 20;
     public int MaxToolIterations { get; set; } = 6;
     public int MaxInputChars { get; set; } = 1000;
@@ -74,7 +75,7 @@ public class AgentService(
             .OrderBy(m => m.Id)
             .Select(m => new ChatMessage(m.Role == "user" ? ChatRole.User : ChatRole.Assistant, m.Text))
             .ToListAsync(ct);
-        history.Insert(0, new ChatMessage(ChatRole.System, SystemPrompt(customer)));
+        history.Insert(0, new ChatMessage(ChatRole.System, SystemPrompt(customer, AgentTools.PendingSummary(conversation, clock.Now))));
 
         var tools = new AgentTools(db, availability, booking, clock, conversation, userMessage.Id);
         var client = new ChatClientBuilder(llm)
@@ -116,7 +117,7 @@ public class AgentService(
         }).ToList();
     }
 
-    private string SystemPrompt(Customer customer)
+    private string SystemPrompt(Customer customer, string? pending)
     {
         var now = clock.Now;
         var name = customer.Name is null ? "todavía no sabemos su nombre" : $"se llama {customer.Name}";
@@ -126,6 +127,7 @@ public class AgentService(
 
             Hoy es {now.ToString("dddd d 'de' MMMM 'de' yyyy", Es)} y son las {now:HH:mm} (hora de Santo Domingo).
             El cliente que escribe {name}.
+            {(pending is null ? "No hay ninguna propuesta pendiente." : $"Propuesta pendiente que ya le mostraste al cliente: {pending}. Si ahora la acepta, llama confirm_pending directamente, sin volver a consultar ni proponer.")}
 
             Reglas:
             - Los servicios, precios y horarios salen siempre de las herramientas. No inventes nada.
@@ -133,6 +135,7 @@ public class AgentService(
               propose_appointment, muéstrale el resumen y pregúntale si confirma. Solo llama confirm_pending
               cuando responda que sí a esa propuesta.
             - Para cancelar, igual: propose_cancel, pregunta, y confirm_pending solo con un sí.
+            - Si una herramienta devuelve un error, no digas que lo hiciste: explícale al cliente qué pasó.
             - Si el cliente pide algo vago ("en la tarde", "el viernes"), conviértelo en fechas concretas y
               ofrece como mucho 3 o 4 horarios.
             - Si piden algo que no tiene que ver con la barbería, di amablemente que solo ayudas con citas.

@@ -8,7 +8,7 @@ En RD muchos negocios pequeños agendan así, a mano, contestando mensajes todo 
 de este proyecto es resolver esa parte sin que el dueño pierda el control de su agenda.
 
 **Stack:** .NET 10 · ASP.NET Core minimal APIs · EF Core 10 · SQL Server · Microsoft.Extensions.AI ·
-Claude Haiku 4.5 · WhatsApp Cloud API · xUnit + Testcontainers · GitHub Actions · Docker
+Gemini (plan gratis) o Claude · WhatsApp Cloud API · xUnit + Testcontainers · GitHub Actions · Docker
 
 ## Cómo funciona
 
@@ -59,9 +59,17 @@ Server; en local se puede apuntar a uno instalado con `AGENDABOT_TEST_SQL`.
 `Agent/`, `WhatsApp/`, `Admin/`) y usa el `DbContext` directamente. EF Core ya es unit of work y
 repositorio; envolverlo en otro repositorio genérico no agregaba nada acá.
 
-**El agente no depende del proveedor.** Usa `IChatClient` de `Microsoft.Extensions.AI`. En
-producción es Claude Haiku 4.5 (rápido y barato para este flujo); en los tests es un modelo falso
-que devuelve tool calls guionadas.
+**El agente no depende del proveedor.** Usa `IChatClient` de `Microsoft.Extensions.AI`: Gemini
+(`gemini-flash-lite-latest`, entra en el plan gratis) o Claude Haiku 4.5, según qué key esté
+configurada; en los tests es un modelo falso que devuelve tool calls guionadas. Para Gemini se usa
+el SDK oficial de Google y no el endpoint compatible con OpenAI: los modelos Gemini 3 exigen
+devolver la "thought signature" de cada tool call, y ese adaptador la pierde (responde 400).
+
+**Lo que encontraron las evals.** En el turno del "sí", el modelo volvía a proponer lo mismo y
+confirmaba en el mismo turno; el servidor lo rechazaba (bien) y el modelo igual le decía al cliente
+que estaba agendado (mal). La causa era que el historial solo guarda texto, así que el modelo no
+sabía que ya había una propuesta. Ahora la propuesta vigente va en el prompt de cada turno y volver
+a proponer exactamente lo mismo no reinicia la espera.
 
 **Costo del LLM con tope.** Hay un límite de mensajes por número en el webhook y por IP en la demo,
 un tope diario global para la demo, un máximo de 6 llamadas a herramientas por mensaje y una
@@ -88,9 +96,11 @@ dotnet run --project src/AgendaBot.Api     # migra y siembra una barbería de ej
 ```
 
 En desarrollo, el login del panel es `admin-dev` (ver `appsettings.Development.json`). Para que
-el agente responda, define la API key:
+el agente responda, define una API key. La de Gemini es gratis en [AI Studio](https://aistudio.google.com/apikey):
 
 ```bash
+dotnet user-secrets --project src/AgendaBot.Api set "Gemini:ApiKey" "..."
+# o, con Claude:
 dotnet user-secrets --project src/AgendaBot.Api set "Anthropic:ApiKey" "sk-ant-..."
 ```
 
@@ -98,12 +108,15 @@ dotnet user-secrets --project src/AgendaBot.Api set "Anthropic:ApiKey" "sk-ant-.
 
 ```bash
 dotnet test                                # levanta SQL Server con Testcontainers
-dotnet test --filter "Category=Eval"       # evals contra el modelo real (necesita ANTHROPIC_API_KEY)
+AGENDABOT_EVALS=1 dotnet test --filter "Category=Eval"   # evals contra el modelo real (GEMINI_API_KEY o ANTHROPIC_API_KEY)
 ```
 
 Las evals son 13 conversaciones guionadas (fechas relativas, horario ocupado, domingo cerrado,
 cambio de hora, "déjame pensarlo", intento de saltarse la confirmación…). Se califican por lo que
-quedó en la base, no por el texto, que varía entre corridas.
+quedó en la base, no por el texto, que varía entre corridas. Con `gemini-flash-lite-latest` pasan
+las 13. Hacen una pausa de 15 s entre turnos para no pasarse del límite por minuto del plan gratis
+(`AGENDABOT_EVAL_DELAY` la cambia); si una falla, la salida del test muestra la conversación y
+cada herramienta que usó el agente.
 
 Para crear migraciones: `ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add <Nombre> -p src/AgendaBot.Api -o Data/Migrations`.
 
@@ -113,7 +126,8 @@ Para crear migraciones: `ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations
 | --- | --- |
 | `ConnectionStrings:Default` | SQL Server |
 | `Auth:AdminPassword`, `Auth:JwtKey` (≥ 32 caracteres) | Login del panel |
-| `Anthropic:ApiKey` | El agente. Sin ella, el resto funciona y el agente responde que no está configurado |
+| `Gemini:ApiKey` o `Anthropic:ApiKey` | El agente (si están las dos, usa Gemini). Sin ninguna, el resto funciona y el agente responde que no está configurado |
+| `Agent:Model` | Cambiar el modelo por defecto del proveedor |
 | `WhatsApp:VerifyToken`, `WhatsApp:AppSecret`, `WhatsApp:AccessToken`, `WhatsApp:PhoneNumberId` | App de Meta |
 | `Reminders:Enabled`, `Reminders:Template` | Recordatorios (plantilla aprobada en Meta) |
 | `Business:Name` | Nombre que usa el agente |

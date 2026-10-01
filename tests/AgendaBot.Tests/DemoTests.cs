@@ -31,6 +31,8 @@ public class DemoTests(ApiFactory api) : IAsyncLifetime
         var http = api.CreateClient();
         Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsJsonAsync("/demo/chat", new { session = Guid.NewGuid(), text = "  " })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsJsonAsync("/demo/chat", new { text = "hola" })).StatusCode);
+        var broken = new StringContent("{\"session\": \"x\", \"text\":", System.Text.Encoding.UTF8, "application/json");
+        Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsync("/demo/chat", broken)).StatusCode);
         Assert.Empty(api.Llm.Calls);
     }
 
