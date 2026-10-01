@@ -45,7 +45,8 @@ CI y deploy en vivo.
   factura abierta.
 
 ## Modelo de datos
-`Business`, `Service` (nombre, duración, precio), `Staff`, `WorkingHours` (por staff y día),
+Un solo negocio por instancia, así que nombre y zona horaria van en configuración (`Business`),
+no en una tabla. `Service` (nombre, duración, precio), `Staff`, `WorkingHours` (por staff y día),
 `TimeOff`, `Customer` (teléfono, nombre), `Appointment` (staff, servicio, cliente, inicio, fin,
 estado: Pending/Confirmed/Cancelled/NoShow), `Conversation`, `Message`, `PendingAction`.
 
@@ -98,4 +99,7 @@ Pagos, multi-negocio (multi-tenant), audios/imágenes, app móvil del dueño.
   el adaptador de `Microsoft.Extensions.AI` o un `IChatClient` propio delgado sobre su HTTP API.
 
 ## Status
-in-progress (solo plan, sin código)
+in-progress. Pasos 1 a 6 hechos y con tests (22 pasan, en ramas `feature/*` encadenadas).
+Paso 7: Dockerfile y evals escritos; falta correr las evals con una API key real y el deploy
+en Azure (necesita la cuenta de Kelvis). Paso 8: README hecho; falta video y entrada en el
+portfolio.
