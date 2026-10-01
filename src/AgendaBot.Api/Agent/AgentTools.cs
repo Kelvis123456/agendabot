@@ -17,8 +17,10 @@ public class AgentTools(
 {
     private static readonly TimeSpan PendingTtl = TimeSpan.FromMinutes(30);
 
-    private record PendingAppointment(int ServiceId, int StaffId, DateTime Start);
-    private record PendingCancel(int AppointmentId);
+    // Summary es el texto que vio el cliente; se le vuelve a mostrar al modelo en el prompt.
+    private record PendingAppointment(int ServiceId, int StaffId, DateTime Start, string Summary);
+    private record PendingCancel(int AppointmentId, string Summary);
+    private record PendingText(string Summary);
 
     public IList<AITool> All() =>
     [
@@ -81,13 +83,9 @@ public class AgentTools(
         if (slot is null) return Error("Ese horario no está disponible. Consulta get_availability y ofrece otro.");
 
         var service = await db.Services.AsNoTracking().FirstAsync(x => x.Id == serviceId);
-        SetPending("appointment", new PendingAppointment(serviceId, staffId, s));
-        return new
-        {
-            pendiente = true,
-            resumen = $"{service.Name} con {slot.StaffName}, {s.ToString("dddd d 'de' MMMM, h:mm tt", Es)}, RD${service.Price:N0}",
-            siguiente_paso = "Pregúntale al cliente si confirma.",
-        };
+        var summary = $"{service.Name} con {slot.StaffName}, {s.ToString("dddd d 'de' MMMM, h:mm tt", Es)}, RD${service.Price:N0}";
+        SetPending("appointment", new PendingAppointment(serviceId, staffId, s, summary));
+        return new { pendiente = true, resumen = summary, siguiente_paso = "Pregúntale al cliente si confirma." };
     }
 
     [Description("Propone cancelar una cita del cliente. No la cancela: hay que esperar que confirme.")]
@@ -97,13 +95,9 @@ public class AgentTools(
             .FirstOrDefaultAsync(x => x.Id == appointmentId && x.CustomerId == conversation.CustomerId
                                       && x.Status == AppointmentStatus.Confirmed);
         if (a is null) return Error("Esa cita no existe o no es de este cliente.");
-        SetPending("cancel", new PendingCancel(a.Id));
-        return new
-        {
-            pendiente = true,
-            resumen = $"Cancelar {a.Service.Name} del {a.Start.ToString("dddd d 'de' MMMM, h:mm tt", Es)}",
-            siguiente_paso = "Pregúntale al cliente si confirma.",
-        };
+        var summary = $"Cancelar {a.Service.Name} del {a.Start.ToString("dddd d 'de' MMMM, h:mm tt", Es)}";
+        SetPending("cancel", new PendingCancel(a.Id, summary));
+        return new { pendiente = true, resumen = summary, siguiente_paso = "Pregúntale al cliente si confirma." };
     }
 
     [Description("Ejecuta la propuesta pendiente. Llamar solo cuando el cliente respondió que sí a la última propuesta.")]
@@ -138,10 +132,23 @@ public class AgentTools(
 
     private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-DO");
 
+    // Texto de la propuesta vigente, para el prompt del turno. null si no hay o ya venció.
+    public static string? PendingSummary(Conversation c, DateTime now) =>
+        c.PendingJson is null || now - c.PendingAt > PendingTtl
+            ? null
+            : JsonSerializer.Deserialize<PendingText>(c.PendingJson)?.Summary;
+
     private void SetPending(string kind, object payload)
     {
+        var json = JsonSerializer.Serialize(payload);
+        // Volver a proponer exactamente lo mismo (el modelo a veces lo hace al recibir el "sí")
+        // no reinicia la espera: el cliente ya vio esa propuesta en un turno anterior.
+        var samePending = conversation.PendingKind == kind && conversation.PendingJson == json
+                          && clock.Now - conversation.PendingAt <= PendingTtl;
+        if (samePending) return;
+
         conversation.PendingKind = kind;
-        conversation.PendingJson = JsonSerializer.Serialize(payload);
+        conversation.PendingJson = json;
         conversation.PendingAfterMessageId = currentMessageId;
         conversation.PendingAt = clock.Now;
     }
