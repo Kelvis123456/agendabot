@@ -19,7 +19,7 @@ public class DemoTests(ApiFactory api) : IAsyncLifetime
         res.EnsureSuccessStatusCode();
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal("¿Qué quieres confirmar?", body.GetProperty("reply").GetString());
+        Assert.EndsWith("¿Qué quieres confirmar?", body.GetProperty("reply").GetString());
         var tool = Assert.Single(body.GetProperty("tools").EnumerateArray());
         Assert.Equal("confirm_pending", tool.GetProperty("name").GetString());
         Assert.True(tool.GetProperty("failed").GetBoolean());

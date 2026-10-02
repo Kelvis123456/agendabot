@@ -49,7 +49,7 @@ public class WhatsAppWebhookTests(ApiFactory api) : IAsyncLifetime
         var (url, json) = Assert.Single(api.WhatsApp.Sent);
         Assert.EndsWith("/123456/messages", url);
         Assert.Equal("18095550199", json.GetProperty("to").GetString());
-        Assert.Equal("¡Hola! ¿En qué te ayudo?", json.GetProperty("text").GetProperty("body").GetString());
+        Assert.EndsWith("\n\n¡Hola! ¿En qué te ayudo?", json.GetProperty("text").GetProperty("body").GetString()); // después del aviso de IA
         Assert.Single(api.Llm.Calls);
         Assert.Single(sent);
     }

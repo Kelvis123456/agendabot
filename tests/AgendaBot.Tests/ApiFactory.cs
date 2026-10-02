@@ -42,6 +42,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("WhatsApp:VerifyToken", WhatsAppVerifyToken);
         builder.UseSetting("WhatsApp:AccessToken", "token-de-acceso");
         builder.UseSetting("WhatsApp:PhoneNumberId", "123456");
+        builder.UseSetting("Business:Contact", "809-555-0100");
+        builder.UseSetting("Business:PrivacyUrl", "https://ejemplo.do/privacidad");
         if (RealLlm is { } llm) builder.UseSetting(llm.Setting, llm.Value);
         builder.ConfigureTestServices(s =>
         {

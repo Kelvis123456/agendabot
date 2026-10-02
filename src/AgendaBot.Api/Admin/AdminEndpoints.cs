@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AgendaBot.Api.Data;
+using AgendaBot.Api.Privacy;
 using AgendaBot.Api.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,9 @@ public record TimeOffRequest(DateTime Start, DateTime End, [MaxLength(200)] stri
 public record AdminBookingRequest(
     int StaffId, int ServiceId, DateTime Start,
     [Required, MaxLength(20)] string CustomerPhone,
-    [MaxLength(100)] string? CustomerName);
+    [MaxLength(100)] string? CustomerName,
+    // Solo true si el cliente dijo que sí a recibir el recordatorio por WhatsApp (en persona, por teléfono).
+    bool RemindersOptIn = false);
 
 public static class AdminEndpoints
 {
@@ -119,12 +122,20 @@ public static class AdminEndpoints
                 .ToListAsync();
         });
 
-        admin.MapPost("/appointments", async (AdminBookingRequest req, Customers customers, Booking booking) =>
+        admin.MapPost("/appointments", async (AdminBookingRequest req, Customers customers, Booking booking, BusinessClock clock) =>
         {
             var customer = await customers.GetOrCreateAsync(req.CustomerPhone, req.CustomerName);
+            if (req.RemindersOptIn && customer.OptedOutAt is null) customer.RemindersOptInAt ??= clock.Now; // se guarda con la cita
             var result = await booking.BookAsync(req.StaffId, req.ServiceId, customer.Id, req.Start);
             return result.ToHttp();
         });
+
+        // Pedidos de acceso o borrado que llegan por fuera del chat (correo, en persona).
+        admin.MapGet("/customers/{phone}", async (string phone, CustomerData data) =>
+            await data.ExportAsync(phone) is { } export ? Results.Ok(export) : Results.NotFound());
+
+        admin.MapDelete("/customers/{phone}", async (string phone, CustomerData data) =>
+            await data.DeleteAsync(phone) ? Results.NoContent() : Results.NotFound());
 
         admin.MapPost("/appointments/{id:int}/cancel", async (int id, Booking booking) =>
             await booking.CancelAsync(id) is { } a ? Results.Ok(new { a.Id, Status = a.Status.ToString() }) : Results.NotFound());

@@ -7,6 +7,10 @@ public class BusinessOptions
     public string Name { get; set; } = "AgendaBot";
     public string TimeZone { get; set; } = "America/Santo_Domingo";
     public int SlotStepMinutes { get; set; } = 30;
+    // Aviso de privacidad publicado por el negocio (ver docs/privacy.md). Va en el primer mensaje.
+    public string? PrivacyUrl { get; set; }
+    // Teléfono o correo donde atiende una persona del negocio. También va en el primer mensaje.
+    public string? Contact { get; set; }
 }
 
 // Hora "de pared" del negocio. Todo lo que se guarda y se compara usa esta hora local.

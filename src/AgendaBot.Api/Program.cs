@@ -4,6 +4,7 @@ using AgendaBot.Api.Admin;
 using AgendaBot.Api.Agent;
 using Anthropic;
 using AgendaBot.Api.Data;
+using AgendaBot.Api.Privacy;
 using AgendaBot.Api.Scheduling;
 using AgendaBot.Api.WhatsApp;
 using System.Threading.Channels;
@@ -58,6 +59,10 @@ builder.Services.AddHostedService<WhatsAppWorker>();
 builder.Services.Configure<ReminderOptions>(builder.Configuration.GetSection("Reminders"));
 builder.Services.AddScoped<Reminders>();
 builder.Services.AddHostedService<ReminderWorker>();
+builder.Services.AddScoped<CustomerData>();
+builder.Services.Configure<RetentionOptions>(builder.Configuration.GetSection("Retention"));
+builder.Services.AddScoped<Retention>();
+builder.Services.AddHostedService<RetentionWorker>();
 
 var auth = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
 if (auth.JwtKey.Length < 32)

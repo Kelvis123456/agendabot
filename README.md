@@ -80,6 +80,15 @@ valida la firma, deduplica por id de mensaje y encola; un `BackgroundService` ha
 lento. La cola es en memoria (`Channel<T>`): si la API se cae con mensajes encolados, se pierden.
 Para el volumen de una barbería alcanza; el paso siguiente sería una cola persistente.
 
+**Datos de los clientes.** El bot maneja números, nombres, citas y el texto de las conversaciones,
+y ese texto se lo manda a Gemini. Por eso la primera respuesta de cada conversación avisa que es
+una IA y cómo salirse; los recordatorios solo van a quien aceptó (WhatsApp lo exige para los
+mensajes que inicia el negocio); BAJA, ALTA y BORRAR MIS DATOS se resuelven en el servidor sin
+pasar por el modelo, y los mensajes se borran solos a los 90 días. Lo dejé en
+[docs/privacy.md](docs/privacy.md), con un aviso de privacidad que el negocio puede adaptar y
+publicar. Lo que no puedo resolver desde el código (usar Gemini de pago con clientes reales, que
+un abogado revise el aviso) también está anotado ahí.
+
 ## Demo
 
 `/` sirve un chat que habla con el mismo agente sin pasar por WhatsApp. Al lado, un "ticket"
@@ -131,8 +140,14 @@ Para crear migraciones: `ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations
 | `WhatsApp:VerifyToken`, `WhatsApp:AppSecret`, `WhatsApp:AccessToken`, `WhatsApp:PhoneNumberId` | App de Meta |
 | `Reminders:Enabled`, `Reminders:Template` | Recordatorios (plantilla aprobada en Meta) |
 | `Business:Name` | Nombre que usa el agente |
+| `Business:PrivacyUrl`, `Business:Contact` | Aviso de privacidad del negocio y un teléfono o correo donde atiende una persona; los dos van en el primer mensaje |
+| `Retention:ConversationDays` | Días que se guardan los mensajes (90 por defecto) |
 | `Seed:Demo` | Sembrar la barbería de ejemplo |
 
 ## Fuera de alcance por ahora
 
 Pagos, varios negocios en la misma instancia, audios e imágenes, y una app para el dueño.
+
+## Licencia
+
+MIT, ver [LICENSE](LICENSE).

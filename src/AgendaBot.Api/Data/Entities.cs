@@ -45,6 +45,10 @@ public class Customer
     public required string Phone { get; set; }
     public string? Name { get; set; }
     public DateTime CreatedAt { get; set; }
+    // WhatsApp solo deja escribir por iniciativa del negocio (recordatorios) a quien aceptó.
+    // Se marca al confirmar una cita por el chat, con ALTA o desde el panel. BAJA lo apaga.
+    public DateTime? RemindersOptInAt { get; set; }
+    public DateTime? OptedOutAt { get; set; }
 }
 
 public enum AppointmentStatus { Confirmed, Cancelled, NoShow }

@@ -12,7 +12,7 @@ public class ReminderOptions
     public int IntervalMinutes { get; set; } = 15;
     public int HoursBefore { get; set; } = 24;
     // Plantilla aprobada en Meta. Fuera de la ventana de 24 h solo se puede escribir con plantillas.
-    // Cuerpo esperado: "Hola {{1}}, te recordamos tu cita de {{2}} {{3}}. Si no puedes venir, respóndenos y la cancelamos."
+    // Cuerpo esperado: "Hola {{1}}, te recordamos tu cita de {{2}} {{3}}. Si no puedes venir, respóndenos y la cancelamos. Escribe BAJA para no recibir más recordatorios."
     public string Template { get; set; } = "recordatorio_cita";
     public string Language { get; set; } = "es";
 }
@@ -29,6 +29,8 @@ public class Reminders(AppDbContext db, WhatsAppClient whatsapp, BusinessClock c
         var due = await db.Appointments
             .Include(a => a.Customer).Include(a => a.Service)
             .Where(a => a.Status == AppointmentStatus.Confirmed && a.ReminderSentAt == null
+                        // Política de WhatsApp: mensajes por iniciativa del negocio solo con opt-in.
+                        && a.Customer.RemindersOptInAt != null && a.Customer.OptedOutAt == null
                         && a.Start > now && a.Start <= now.AddHours(o.HoursBefore)
                         // Si reservó hace un rato para dentro de pocas horas, no hace falta recordarle.
                         && a.CreatedAt <= now.AddHours(-2))
