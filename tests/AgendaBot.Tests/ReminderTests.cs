@@ -16,7 +16,7 @@ public class ReminderTests(ApiFactory api) : IAsyncLifetime
         await using var db = api.CreateDb();
         var service = new Service { Name = "Corte", DurationMinutes = 30, Price = 500 };
         var staff = new Staff { Name = "Luis" };
-        var ana = new Customer { Phone = "18095550301", Name = "Ana", CreatedAt = DateTime.Now };
+        var ana = new Customer { Phone = "18095550301", Name = "Ana", CreatedAt = DateTime.Now, RemindersOptInAt = DateTime.Now };
         db.AddRange(service, staff, ana);
         await db.SaveChangesAsync();
 
@@ -75,6 +75,21 @@ public class ReminderTests(ApiFactory api) : IAsyncLifetime
 
         api.WhatsApp.Status = System.Net.HttpStatusCode.OK;
         Assert.Equal(1, await Run());
+    }
+
+    [Fact]
+    public async Task No_le_escribe_a_quien_no_acepto_o_se_dio_de_baja()
+    {
+        await using (var db = api.CreateDb())
+            await db.Customers.ExecuteUpdateAsync(s => s.SetProperty(c => c.RemindersOptInAt, (DateTime?)null));
+        Assert.Equal(0, await Run());
+
+        await using (var db = api.CreateDb())
+            await db.Customers.ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.RemindersOptInAt, DateTime.Now)
+                .SetProperty(c => c.OptedOutAt, DateTime.Now));
+        Assert.Equal(0, await Run());
+        Assert.Empty(api.WhatsApp.Sent);
     }
 
     private async Task<int> Run()

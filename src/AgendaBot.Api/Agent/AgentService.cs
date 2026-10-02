@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using AgendaBot.Api.Data;
+using AgendaBot.Api.Privacy;
 using AgendaBot.Api.Scheduling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -23,7 +24,7 @@ public record ToolTrace(string Name, string Arguments, bool Failed, string Resul
 public record AgentReply(string Text, IReadOnlyList<ToolTrace> Tools);
 
 public class AgentService(
-    AppDbContext db, Customers customers, Availability availability, Booking booking,
+    AppDbContext db, Customers customers, CustomerData customerData, Availability availability, Booking booking,
     BusinessClock clock, IOptions<BusinessOptions> business, IOptions<AgentOptions> options,
     ILogger<AgentService> log, IChatClient? llm = null)
 {
@@ -50,6 +51,9 @@ public class AgentService(
 
     private async Task<AgentReply> TurnAsync(string phone, string text, CancellationToken ct)
     {
+        // BAJA, ALTA y BORRAR MIS DATOS no pasan por el modelo ni se guardan en la conversación.
+        if (CustomerData.ParseCommand(text) is { } command)
+            return new AgentReply(await customerData.HandleAsync(phone, command), []);
         if (llm is null) return new AgentReply("El asistente no está configurado todavía.", []);
         var o = options.Value;
         text = text.Trim();
@@ -63,6 +67,8 @@ public class AgentService(
             conversation = new Conversation { CustomerId = customer.Id, Customer = customer, UpdatedAt = clock.Now };
             db.Conversations.Add(conversation);
         }
+        var firstMessage = conversation.Id == 0
+            || !await db.ConversationMessages.AnyAsync(m => m.ConversationId == conversation.Id && m.Role == "user", ct);
 
         var userMessage = new ConversationMessage { Role = "user", Text = text, CreatedAt = clock.Now };
         conversation.Messages.Add(userMessage);
@@ -99,10 +105,22 @@ public class AgentService(
             reply = "Ahora mismo no puedo responder, intenta de nuevo en unos minutos.";
         }
 
+        // Que el cliente sepa desde el primer mensaje que habla con una IA, quién ve sus datos y
+        // cómo darse de baja. Va en C# y no en el prompt para que no dependa del modelo.
+        if (firstMessage) reply = Disclosure() + "\n\n" + reply;
         if (reply.Length > 4000) reply = reply[..4000];
         conversation.Messages.Add(new ConversationMessage { Role = "assistant", Text = reply, CreatedAt = clock.Now });
         await db.SaveChangesAsync(ct);
         return new AgentReply(reply, trace);
+    }
+
+    private string Disclosure()
+    {
+        var (url, contact) = (business.Value.PrivacyUrl, business.Value.Contact);
+        return $"Hola, te atiende el asistente automático de {business.Value.Name}. Las respuestas las genera una IA y pueden tener errores."
+               + (string.IsNullOrWhiteSpace(contact) ? " " : $" Para hablar con una persona: {contact}. ")
+               + "Si agendas, te recordamos la cita por aquí un día antes; escribe BAJA si no quieres recordatorios o BORRAR MIS DATOS para eliminar tu información."
+               + (string.IsNullOrWhiteSpace(url) ? "" : $" Cómo usamos tus datos: {url}");
     }
 
     private static List<ToolTrace> Trace(IList<ChatMessage> messages)

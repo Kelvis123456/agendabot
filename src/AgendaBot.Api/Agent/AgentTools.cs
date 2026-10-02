@@ -122,8 +122,21 @@ public class AgentTools(
 
         var p = JsonSerializer.Deserialize<PendingAppointment>(json)!;
         var result = await booking.BookAsync(p.StaffId, p.ServiceId, conversation.CustomerId, p.Start);
+        // Confirmar la cita por el chat cuenta como aceptar el recordatorio (el primer mensaje ya
+        // avisa que se manda), salvo que el cliente haya escrito BAJA antes.
+        if (result.Error is null && conversation.Customer.OptedOutAt is null)
+        {
+            conversation.Customer.RemindersOptInAt ??= clock.Now;
+            await db.SaveChangesAsync();
+        }
         return result.Error switch
         {
+            null when conversation.Customer.OptedOutAt is null => new
+            {
+                agendada = true,
+                id = result.Appointment!.Id,
+                recordatorio = "Dile que le recordaremos la cita por WhatsApp un día antes y que puede escribir BAJA si no lo quiere.",
+            },
             null => new { agendada = true, id = result.Appointment!.Id },
             BookingError.Taken => Error("Alguien tomó ese horario hace un momento. Ofrece otro."),
             _ => Error($"No se pudo agendar ({result.Error})."),
