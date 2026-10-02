@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using System.Threading.RateLimiting;
 using AgendaBot.Api.Agent;
 using AgendaBot.Api.Data;
+using AgendaBot.Api.Privacy;
 using AgendaBot.Api.Scheduling;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +59,7 @@ public static class WhatsAppWebhook
                 if (!await FirstTimeAsync(db, id, clock)) continue;
                 if (!limiter.TryAcquire(from))
                 {
-                    log.LogWarning("Mensaje descartado por rate limit de {Phone}", from);
+                    log.LogWarning("Mensaje descartado por rate limit de {Phone}", CustomerData.Mask(from));
                     continue;
                 }
                 // Responder 200 rápido y procesar después: Meta reintenta si tardamos.
@@ -163,7 +164,7 @@ public class WhatsAppWorker(Channel<IncomingMessage> queue, IServiceScopeFactory
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                log.LogError(ex, "No se pudo procesar el mensaje de {Phone}", msg.From);
+                log.LogError(ex, "No se pudo procesar el mensaje de {Phone}", CustomerData.Mask(msg.From));
             }
         }
     }
