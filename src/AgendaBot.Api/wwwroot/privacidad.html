@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacidad · AgendaBot</title>
+<meta name="description" content="Qué datos guarda la demo de AgendaBot, con quién se comparten y cuándo se borran.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+  :root { --steel: #E6EAEF; --ink: #16202B; --muted: #556170; --paper: #FFFFFF; --pole-blue: #1F55B5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--steel); color: var(--ink); font: 16px/1.6 "Atkinson Hyperlegible", system-ui, sans-serif; }
+  a { color: var(--pole-blue); }
+  :focus-visible { outline: 3px solid var(--pole-blue); outline-offset: 2px; }
+  main { max-width: 70ch; margin: 0 auto; padding: 32px 16px 48px; }
+  .card { background: var(--paper); border-radius: 18px; padding: 24px; }
+  h1 { font: 700 clamp(1.8rem, 4vw, 2.4rem)/1.1 "Familjen Grotesk", system-ui, sans-serif; margin: 0 0 4px; }
+  h2 { font: 700 1.15rem/1.3 "Familjen Grotesk", system-ui, sans-serif; margin: 28px 0 6px; }
+  .updated { color: var(--muted); margin: 0 0 20px; }
+  ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/">← Volver a la demo</a></p>
+  <div class="card">
+    <h1>Privacidad</h1>
+    <p class="updated">Última actualización: 2 de octubre de 2026</p>
+
+    <p>AgendaBot es un proyecto de portfolio de Kelvis Guerrero. Esta página explica qué pasa con lo que escribes en la demo. La barbería de la demo no existe: no se agendan citas reales y la demo no está conectada a WhatsApp.</p>
+
+    <h2>Qué datos se guardan</h2>
+    <ul>
+      <li>Los mensajes que escribes en el chat y las respuestas del agente.</li>
+      <li>El nombre que le digas al agente, si se lo dices.</li>
+      <li>Las citas de prueba que pidas o canceles.</li>
+      <li>Un identificador aleatorio de sesión, que tu navegador guarda en <code>sessionStorage</code> y se borra al cerrar la pestaña. No hay cookies ni analítica.</li>
+      <li>Tu dirección IP la usa el servidor para limitar cuántos mensajes se pueden mandar. La aplicación no la guarda en la base de datos, pero el hosting puede registrarla en sus logs técnicos.</li>
+    </ul>
+    <p>Por favor, no escribas datos personales reales (teléfonos, direcciones, documentos, información de salud). No hacen falta para probar la demo.</p>
+
+    <h2>Para qué</h2>
+    <p>Solo para que la demo funcione: responderte, mostrar el ticket de lo que hizo el backend y evitar abusos. Se tratan porque tú decides usar la demo y por el interés legítimo de mostrar cómo funciona el proyecto. No se usan para publicidad ni se venden.</p>
+
+    <h2>Con quién se comparten</h2>
+    <ul>
+      <li><strong>Google (Gemini API).</strong> Cada mensaje, junto con el historial reciente de la conversación, se envía a Gemini para generar la respuesta. La demo usa el plan gratuito, y en ese plan Google puede usar el contenido para mejorar sus productos y revisores humanos pueden leerlo. Por eso te pedimos no escribir datos reales. Google procesa los datos en servidores que pueden estar fuera de República Dominicana, incluidos los Estados Unidos.</li>
+      <li><strong>MonsterASP.NET</strong>, el hosting donde corren la aplicación y su base de datos.</li>
+    </ul>
+
+    <h2>Cuánto tiempo se guardan</h2>
+    <p>Las conversaciones, nombres y citas de prueba se borran automáticamente a los 7 días de tu último mensaje. Si tocas "Empezar de nuevo", se borran en ese momento.</p>
+
+    <h2>Tus derechos</h2>
+    <p>Puedes pedir acceso, corrección o borrado de tus datos, u oponerte a su tratamiento (Ley 172-13 de República Dominicana y, si estás en la Unión Europea, el RGPD). Escribe a <a href="mailto:kelvisguerrero03@gmail.com?subject=Privacidad%20AgendaBot">kelvisguerrero03@gmail.com</a> y respondo en un plazo máximo de 30 días. Como la demo no pide tu identidad, ayuda que indiques más o menos cuándo la usaste y qué escribiste.</p>
+
+    <h2>Menores de edad</h2>
+    <p>La demo no está pensada para menores de 16 años. Si eres menor, por favor no la uses.</p>
+
+    <h2>Cambios</h2>
+    <p>Si esto cambia, se actualiza esta página y la fecha de arriba.</p>
+  </div>
+</main>
+</body>
+</html>

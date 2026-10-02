@@ -36,6 +36,9 @@ builder.Services.AddScoped<Customers>();
 
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection("Agent"));
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<DemoData>();
+if (builder.Configuration.GetValue("Demo:Enabled", true))
+    builder.Services.AddHostedService<DemoCleanupWorker>();
 // El agente usa el primer proveedor con key: Gemini (tiene plan gratis) o Claude.
 // Sin ninguna, la app arranca igual (panel y agenda funcionan); solo el agente queda apagado.
 if (builder.Configuration["Gemini:ApiKey"] is { Length: > 0 } geminiKey)
