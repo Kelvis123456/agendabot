@@ -106,6 +106,8 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 });
 app.UseDefaultFiles();
 app.UseStaticFiles();
+// Explícito para que el enrutamiento (y el fallback de 404) corra después de los archivos estáticos.
+app.UseRouting();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
 app.UseRateLimiter();
@@ -132,6 +134,17 @@ app.MapAdmin();
 app.MapWhatsApp();
 if (app.Configuration.GetValue("Demo:Enabled", true))
     app.MapDemo();
+
+// Rutas que no existen: página 404 para el navegador, ProblemDetails para el resto.
+app.MapFallback(async (HttpContext ctx, IWebHostEnvironment env) =>
+{
+    ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+    var wantsHtml = HttpMethods.IsGet(ctx.Request.Method) && ctx.Request.Headers.Accept.ToString().Contains("text/html");
+    if (wantsHtml)
+        await ctx.Response.SendFileAsync(env.WebRootFileProvider.GetFileInfo("404.html"));
+    else
+        await Results.Problem("No existe.", statusCode: 404).ExecuteAsync(ctx);
+});
 
 app.Run();
 
