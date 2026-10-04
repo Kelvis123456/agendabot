@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgendaBot · demo</title>
 <meta name="description" content="Prueba el agente de citas de una barbería de ejemplo y mira qué hace el backend en cada mensaje.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Familjen+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="AgendaBot · demo">
+<meta property="og:description" content="Prueba el agente de citas de una barbería de ejemplo y mira qué hace el backend en cada mensaje.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/og.png">
+<link rel="stylesheet" href="/fonts/fonts.css">
 <style>
   :root {
     --steel: #E6EAEF;      /* fondo: acero de las herramientas */
@@ -151,6 +154,9 @@
   .rules p { margin: 0 0 8px; }
   .rules code { font: 0.85em var(--mono); color: var(--ink); }
 
+  .notice { margin: 0; padding: 0 16px 12px; color: var(--muted); font-size: 0.82rem; }
+  .site-foot { margin-top: 32px; color: var(--muted); font-size: 0.9rem; }
+
   @media (prefers-reduced-motion: reduce) {
     .bubble, .turn { transition: opacity 150ms ease; transform: none; clip-path: none; }
   }
@@ -161,7 +167,6 @@
   <header class="intro">
     <h1 class="brand">Agenda<span>Bot</span></h1>
     <p>Esta es una barbería de prueba en Santo Domingo atendida por un agente con IA. Escríbele como le escribirías por WhatsApp: pregunta precios, pide un turno o cancélalo. En el ticket del backend aparece lo que hizo el servidor con cada mensaje.</p>
-    <p style="margin-top: 10px; font-size: 0.95rem">Las respuestas las genera una IA (Gemini, de Google), que recibe lo que escribes. Los mensajes se guardan hasta 90 días. No pongas datos reales: usa un nombre inventado. <a href="https://github.com/Kelvis123456/agendabot/blob/main/docs/privacy.md">Cómo se tratan los datos</a>.</p>
   </header>
 
   <main class="layout">
@@ -192,6 +197,7 @@
         <input id="text" name="text" autocomplete="off" maxlength="1000" placeholder="Escribe un mensaje…" required>
         <button type="submit" id="send">Enviar</button>
       </form>
+      <p class="notice">Es una demo con datos de prueba: no escribas datos personales reales. Tus mensajes los procesa Google Gemini, el agente puede equivocarse y la conversación se borra a los 7 días (o al tocar "Empezar de nuevo"). <a href="/privacidad.html">Privacidad</a></p>
     </section>
 
     <aside class="ticket-wrap" aria-label="Lo que hizo el backend">
@@ -207,6 +213,9 @@
       </div>
     </aside>
   </main>
+  <footer class="site-foot">
+    Proyecto de portfolio de Kelvis Guerrero. La barbería no existe y no se agendan citas reales. · <a href="/privacidad.html">Privacidad</a>
+  </footer>
 </div>
 
 <script>
@@ -327,6 +336,12 @@
     if (e.target instanceof HTMLButtonElement) say(e.target.textContent);
   });
   $("reset").addEventListener("click", () => {
+    const old = session;
+    fetch("/demo/reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: old }),
+    }).catch(() => {}); // si falla, igual se borra sola a los 7 días
     session = newSession();
     turn = 0;
     messages.innerHTML = '<div class="empty" id="empty"><strong>¿Qué quieres hacer?</strong>Conversación nueva: para el agente eres otro cliente.</div>';

@@ -36,6 +36,9 @@ builder.Services.AddScoped<Customers>();
 
 builder.Services.Configure<AgentOptions>(builder.Configuration.GetSection("Agent"));
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<DemoData>();
+if (builder.Configuration.GetValue("Demo:Enabled", true))
+    builder.Services.AddHostedService<DemoCleanupWorker>();
 // El agente usa el primer proveedor con key: Gemini (tiene plan gratis) o Claude.
 // Sin ninguna, la app arranca igual (panel y agenda funcionan); solo el agente queda apagado.
 if (builder.Configuration["Gemini:ApiKey"] is { Length: > 0 } geminiKey)
@@ -106,6 +109,8 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 });
 app.UseDefaultFiles();
 app.UseStaticFiles();
+// Explícito para que el enrutamiento (y el fallback de 404) corra después de los archivos estáticos.
+app.UseRouting();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
 app.UseRateLimiter();
@@ -132,6 +137,17 @@ app.MapAdmin();
 app.MapWhatsApp();
 if (app.Configuration.GetValue("Demo:Enabled", true))
     app.MapDemo();
+
+// Rutas que no existen: página 404 para el navegador, ProblemDetails para el resto.
+app.MapFallback(async (HttpContext ctx, IWebHostEnvironment env) =>
+{
+    ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+    var wantsHtml = HttpMethods.IsGet(ctx.Request.Method) && ctx.Request.Headers.Accept.ToString().Contains("text/html");
+    if (wantsHtml)
+        await ctx.Response.SendFileAsync(env.WebRootFileProvider.GetFileInfo("404.html"));
+    else
+        await Results.Problem("No existe.", statusCode: 404).ExecuteAsync(ctx);
+});
 
 app.Run();
 

@@ -4,6 +4,8 @@ using System.Text;
 
 namespace AgendaBot.Api.Agent;
 
+public record DemoReset(Guid Session);
+
 public record DemoMessage([Required] Guid Session, [Required, MaxLength(1000)] string Text);
 
 // Chat público para probar el agente sin WhatsApp. Cada pestaña del navegador es un cliente
@@ -22,12 +24,20 @@ public static class DemoEndpoints
                 tools = reply.Tools.Select(t => new { t.Name, t.Arguments, t.Failed, t.Result }),
             });
         }).RequireRateLimiting("demo");
+
+        // "Empezar de nuevo" en la página: borra lo que esa sesión dejó en la base.
+        app.MapPost("/demo/reset", async (DemoReset req, DemoData data) =>
+        {
+            if (req.Session == Guid.Empty) return Results.BadRequest();
+            await data.DeleteCustomerAsync(FakePhone(req.Session));
+            return Results.NoContent();
+        }).RequireRateLimiting("demo");
     }
 
     public static string FakePhone(Guid session)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(session.ToString()));
-        var digits = new StringBuilder("999");
+        var digits = new StringBuilder(DemoData.FakePrefix);
         foreach (var b in hash.AsSpan(0, 12)) digits.Append(b % 10);
         return digits.ToString();
     }

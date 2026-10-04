@@ -20,6 +20,11 @@ puedan revisarlo.
 | Aceptación y baja de recordatorios | Al confirmar una cita por el chat, con ALTA/BAJA o desde el panel | Cumplir la política de WhatsApp | Igual que el número |
 | Id técnico de cada mensaje de WhatsApp | Meta | Descartar los reintentos del webhook | 7 días (`Retention:ProcessedMessageDays`) |
 
+**La demo web (`/`) es más estricta.** Sus "clientes" tienen un teléfono falso que empieza con 999
+y no hay un negocio real detrás, así que no hace falta guardar nada: conversación, nombre y citas
+de prueba se borran completos a los 7 días sin actividad (`DemoCleanupWorker`), o en el momento
+si la persona toca "Empezar de nuevo". El aviso para quien usa la demo está en `/privacidad.html`.
+
 No se guardan audios, imágenes ni ubicaciones (el bot responde que solo lee texto), ni datos de
 pago. El nombre que el cliente tiene en su perfil de WhatsApp llega en el webhook pero no se usa.
 Los logs no tienen el texto de los mensajes y los números aparecen enmascarados (`…1234`).
