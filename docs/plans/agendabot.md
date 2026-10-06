@@ -100,6 +100,7 @@ Pagos, multi-negocio (multi-tenant), audios/imágenes, app móvil del dueño.
 
 ## Status
 in-progress. Pasos 1 a 6 hechos y con tests (22 pasan, en ramas `feature/*` encadenadas).
-Paso 7: Dockerfile y evals escritos; falta correr las evals con una API key real y el deploy
-en Azure (necesita la cuenta de Kelvis). Paso 8: README hecho; falta video y entrada en el
+Paso 7: Dockerfile y evals escritos; las 13 evals pasan contra `gemini-flash-lite-latest`
+con una key real (corridas el 2026-10-05, ~6 min). Falta el deploy en Azure (necesita la
+cuenta de Kelvis). Paso 8: README hecho; falta video y entrada en el
 portfolio.
