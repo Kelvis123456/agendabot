@@ -39,7 +39,6 @@ jobs:
       - run: uvx semgrep scan --metrics=off --error --config p/default --config p/csharp
 
   osv:
-    if: hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock','**/poetry.lock','**/uv.lock','**/requirements.txt','**/packages.lock.json','**/pubspec.lock','**/go.sum','**/Cargo.lock') != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -47,6 +46,7 @@ jobs:
         with:
           persist-credentials: false
       - name: osv-scanner
+        if: hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock','**/poetry.lock','**/uv.lock','**/requirements.txt','**/packages.lock.json','**/pubspec.lock','**/go.sum','**/Cargo.lock') != ''
         run: |
           curl -sSfL -o osv-scanner https://github.com/google/osv-scanner/releases/download/v2.2.2/osv-scanner_linux_amd64
           chmod +x osv-scanner
@@ -63,7 +63,6 @@ jobs:
       - run: uvx zizmor .github/workflows
 
   bandit:
-    if: hashFiles('**/*.py') != ''
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -71,4 +70,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        if: hashFiles('**/*.py') != ''
       - run: uvx bandit -r . -ll -x ./node_modules,./.venv,./tests
+        if: hashFiles('**/*.py') != ''
