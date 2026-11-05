@@ -1,16 +1,14 @@
+Español: [README.es.md](README.es.md)
+
 # AgendaBot
 
-Backend en ASP.NET Core para que una barbería atienda su WhatsApp con un agente de IA: el cliente
-escribe "¿tienes algo mañana después de las 4 para un corte?", el agente busca horarios libres,
-propone uno, espera el "sí" y agenda. Un día antes le manda un recordatorio.
+ASP.NET Core backend that lets a barbershop handle its WhatsApp with an AI agent. The customer writes "do you have anything tomorrow after 4 for a haircut?", the agent looks for free slots, proposes one, waits for the "yes" and books it. A day before, it sends a reminder.
 
-En RD muchos negocios pequeños agendan así, a mano, contestando mensajes todo el día. El objetivo
-de este proyecto es resolver esa parte sin que el dueño pierda el control de su agenda.
+In the Dominican Republic, many small businesses schedule this way, by hand, answering messages all day. This project aims to take care of that part without the owner losing control of their calendar.
 
-**Stack:** .NET 10 · ASP.NET Core minimal APIs · EF Core 10 · SQL Server · Microsoft.Extensions.AI ·
-Gemini (plan gratis) o Claude · WhatsApp Cloud API · xUnit + Testcontainers · GitHub Actions · Docker
+**Stack:** .NET 10 · ASP.NET Core minimal APIs · EF Core 10 · SQL Server · Microsoft.Extensions.AI · Gemini (free tier) or Claude · WhatsApp Cloud API · xUnit + Testcontainers · GitHub Actions · Docker
 
-## Cómo funciona
+## How it works
 
 ```mermaid
 sequenceDiagram
@@ -36,76 +34,40 @@ sequenceDiagram
     A-->>C: "¡Listo! Te esperamos."
 ```
 
-## Decisiones que vale la pena explicar
+## Decisions worth explaining
 
-**El modelo no puede agendar solo.** Las herramientas de escritura (`propose_appointment`,
-`propose_cancel`) no tocan la agenda: dejan una propuesta pendiente en la conversación.
-`confirm_pending` la ejecuta solo si el cliente escribió algo *después* de la propuesta. Si el
-modelo intenta proponer y confirmar en el mismo turno (porque el cliente escribió "agéndame sin
-preguntar" o por un error suyo), el servidor lo rechaza. La regla está en C#, no en el prompt, y
-tiene su test: si se quita, el test falla.
+**The model can't book on its own.** The write tools (`propose_appointment`, `propose_cancel`) don't touch the calendar: they leave a pending proposal in the conversation. `confirm_pending` runs it only if the customer wrote something *after* the proposal. If the model tries to propose and confirm in the same turn (because the customer wrote "book me without asking" or because of its own mistake), the server rejects it. The rule lives in C#, not in the prompt, and it has a test: if you remove it, the test fails.
 
-**Doble reserva.** El chequeo de solapamiento y el insert van en una transacción `Serializable`.
-SQL Server bloquea el rango `(StaffId, Start)` y, si dos personas piden el mismo horario a la vez,
-deja pasar a una y a la otra la elige como víctima de deadlock, que se traduce en "ese horario ya
-está ocupado". El test lanza 8 reservas iguales en paralelo contra SQL Server real: con
-`ReadCommitted` entraban las 8; con `Serializable` entra una.
+**Double booking.** The overlap check and the insert run in a `Serializable` transaction. SQL Server locks the `(StaffId, Start)` range and, if two people ask for the same slot at once, lets one through and picks the other as the deadlock victim, which is translated to "that slot is already taken". The test fires 8 identical bookings in parallel against a real SQL Server: with `ReadCommitted` all 8 got in; with `Serializable` one does.
 
-**Tests contra SQL Server real, no InMemory.** El proveedor InMemory no tiene transacciones ni
-bloqueos, así que el test de concurrencia no probaría nada. En CI, Testcontainers levanta SQL
-Server; en local se puede apuntar a uno instalado con `AGENDABOT_TEST_SQL`.
+**Tests against real SQL Server, not InMemory.** The InMemory provider has no transactions or locks, so the concurrency test wouldn't prove anything. In CI, Testcontainers starts SQL Server; locally you can point to an installed one with `AGENDABOT_TEST_SQL`.
 
-**Dos proyectos, sin capas de más.** `AgendaBot.Api` está organizado por feature (`Scheduling/`,
-`Agent/`, `WhatsApp/`, `Admin/`) y usa el `DbContext` directamente. EF Core ya es unit of work y
-repositorio; envolverlo en otro repositorio genérico no agregaba nada acá.
+**Two projects, no extra layers.** `AgendaBot.Api` is organized by feature (`Scheduling/`, `Agent/`, `WhatsApp/`, `Admin/`) and uses the `DbContext` directly. EF Core is already a unit of work and a repository; wrapping it in another generic repository added nothing here.
 
-**El agente no depende del proveedor.** Usa `IChatClient` de `Microsoft.Extensions.AI`: Gemini
-(`gemini-flash-lite-latest`, entra en el plan gratis) o Claude Haiku 4.5, según qué key esté
-configurada; en los tests es un modelo falso que devuelve tool calls guionadas. Para Gemini se usa
-el SDK oficial de Google y no el endpoint compatible con OpenAI: los modelos Gemini 3 exigen
-devolver la "thought signature" de cada tool call, y ese adaptador la pierde (responde 400).
+**The agent doesn't depend on the provider.** It uses `IChatClient` from `Microsoft.Extensions.AI`: Gemini (`gemini-flash-lite-latest`, fits in the free tier) or Claude Haiku 4.5, depending on which key is configured. In the tests it's a fake model that returns scripted tool calls. For Gemini I use Google's official SDK and not the OpenAI-compatible endpoint: Gemini 3 models require sending back the "thought signature" of each tool call, and that adapter loses it (it responds with 400).
 
-**Lo que encontraron las evals.** En el turno del "sí", el modelo volvía a proponer lo mismo y
-confirmaba en el mismo turno; el servidor lo rechazaba (bien) y el modelo igual le decía al cliente
-que estaba agendado (mal). La causa era que el historial solo guarda texto, así que el modelo no
-sabía que ya había una propuesta. Ahora la propuesta vigente va en el prompt de cada turno y volver
-a proponer exactamente lo mismo no reinicia la espera.
+**What the evals found.** On the "yes" turn, the model would propose the same thing again and confirm in the same turn. The server rejected it (good) and the model still told the customer it was booked (bad). The cause was that the history only stores text, so the model didn't know there was already a proposal. Now the current proposal goes in the prompt of every turn, and proposing exactly the same thing again doesn't restart the wait.
 
-**Costo del LLM con tope.** Hay un límite de mensajes por número en el webhook y por IP en la demo,
-un tope diario global para la demo, un máximo de 6 llamadas a herramientas por mensaje y una
-ventana de historial de 20 mensajes.
+**LLM cost cap.** There is a message limit per number on the webhook and per IP on the demo, a global daily cap for the demo, a maximum of 6 tool calls per message and a history window of 20 messages.
 
-**Webhook que responde rápido.** Meta reintenta si no recibe 200 a tiempo, así que el webhook
-valida la firma, deduplica por id de mensaje y encola; un `BackgroundService` hace el trabajo
-lento. La cola es en memoria (`Channel<T>`): si la API se cae con mensajes encolados, se pierden.
-Para el volumen de una barbería alcanza; el paso siguiente sería una cola persistente.
+**A webhook that answers fast.** Meta retries if it doesn't get a 200 in time, so the webhook validates the signature, dedupes by message id and enqueues; a `BackgroundService` does the slow work. The queue is in memory (`Channel<T>`): if the API goes down with messages queued, they are lost. That's enough for a barbershop's volume; the next step would be a persistent queue.
 
-**Datos de los clientes.** El bot maneja números, nombres, citas y el texto de las conversaciones,
-y ese texto se lo manda a Gemini. Por eso la primera respuesta de cada conversación avisa que es
-una IA y cómo salirse; los recordatorios solo van a quien aceptó (WhatsApp lo exige para los
-mensajes que inicia el negocio); BAJA, ALTA y BORRAR MIS DATOS se resuelven en el servidor sin
-pasar por el modelo, y los mensajes se borran solos a los 90 días. Lo dejé en
-[docs/privacy.md](docs/privacy.md), con un aviso de privacidad que el negocio puede adaptar y
-publicar. Lo que no puedo resolver desde el código (usar Gemini de pago con clientes reales, que
-un abogado revise el aviso) también está anotado ahí.
+**Customer data.** The bot handles phone numbers, names, appointments and the text of the conversations, and that text is sent to Gemini. So the first reply of each conversation says it's an AI and how to opt out; reminders only go to people who accepted (WhatsApp requires this for messages the business starts); BAJA, ALTA and BORRAR MIS DATOS are handled on the server without going through the model, and messages are deleted automatically after 90 days. I wrote it up in [docs/privacy.md](docs/privacy.md), with a privacy notice the business can adapt and publish. What I can't solve from the code (using paid Gemini with real customers, having a lawyer review the notice) is also noted there.
 
 ## Demo
 
-`/` sirve un chat que habla con el mismo agente sin pasar por WhatsApp. Al lado, un "ticket"
-imprime qué herramientas usó el agente en cada turno y qué respondió el servidor, incluidos los
-rechazos.
+`/` serves a chat that talks to the same agent without going through WhatsApp. Next to it, a "ticket" prints which tools the agent used on each turn and what the server answered, including rejections.
 
-## Correrlo en local
+## Running it locally
 
-Hace falta el SDK de .NET 10 y Docker (o un SQL Server local).
+You need the .NET 10 SDK and Docker (or a local SQL Server).
 
 ```bash
 docker compose up -d                       # SQL Server en el puerto 1434
 dotnet run --project src/AgendaBot.Api     # migra y siembra una barbería de ejemplo
 ```
 
-En desarrollo, el login del panel es `admin-dev` (ver `appsettings.Development.json`). Para que
-el agente responda, define una API key. La de Gemini es gratis en [AI Studio](https://aistudio.google.com/apikey):
+In development, the admin panel login is `admin-dev` (see `appsettings.Development.json`). For the agent to answer, set an API key. The Gemini one is free in [AI Studio](https://aistudio.google.com/apikey):
 
 ```bash
 dotnet user-secrets --project src/AgendaBot.Api set "Gemini:ApiKey" "..."
@@ -120,34 +82,29 @@ dotnet test                                # levanta SQL Server con Testcontaine
 AGENDABOT_EVALS=1 dotnet test --filter "Category=Eval"   # evals contra el modelo real (GEMINI_API_KEY o ANTHROPIC_API_KEY)
 ```
 
-Las evals son 13 conversaciones guionadas (fechas relativas, horario ocupado, domingo cerrado,
-cambio de hora, "déjame pensarlo", intento de saltarse la confirmación…). Se califican por lo que
-quedó en la base, no por el texto, que varía entre corridas. Con `gemini-flash-lite-latest` pasan
-las 13. Hacen una pausa de 15 s entre turnos para no pasarse del límite por minuto del plan gratis
-(`AGENDABOT_EVAL_DELAY` la cambia); si una falla, la salida del test muestra la conversación y
-cada herramienta que usó el agente.
+The evals are 13 scripted conversations (relative dates, busy slot, closed Sunday, changing the time, "let me think about it", an attempt to skip the confirmation…). They are graded by what ended up in the database, not by the text, which varies between runs. With `gemini-flash-lite-latest` all 13 pass. They pause 15 s between turns so as not to exceed the free tier's per-minute limit (`AGENDABOT_EVAL_DELAY` changes it); if one fails, the test output shows the conversation and every tool the agent used.
 
-Para crear migraciones: `ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add <Nombre> -p src/AgendaBot.Api -o Data/Migrations`.
+To create migrations: `ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add <Nombre> -p src/AgendaBot.Api -o Data/Migrations`.
 
-## Configuración en producción
+## Production configuration
 
-| Clave | Para qué |
+| Key | Purpose |
 | --- | --- |
 | `ConnectionStrings:Default` | SQL Server |
-| `Auth:AdminPassword`, `Auth:JwtKey` (≥ 32 caracteres) | Login del panel |
-| `Gemini:ApiKey` o `Anthropic:ApiKey` | El agente (si están las dos, usa Gemini). Sin ninguna, el resto funciona y el agente responde que no está configurado |
-| `Agent:Model` | Cambiar el modelo por defecto del proveedor |
-| `WhatsApp:VerifyToken`, `WhatsApp:AppSecret`, `WhatsApp:AccessToken`, `WhatsApp:PhoneNumberId` | App de Meta |
-| `Reminders:Enabled`, `Reminders:Template` | Recordatorios (plantilla aprobada en Meta) |
-| `Business:Name` | Nombre que usa el agente |
-| `Business:PrivacyUrl`, `Business:Contact` | Aviso de privacidad del negocio y un teléfono o correo donde atiende una persona; los dos van en el primer mensaje |
-| `Retention:ConversationDays` | Días que se guardan los mensajes (90 por defecto) |
-| `Seed:Demo` | Sembrar la barbería de ejemplo |
+| `Auth:AdminPassword`, `Auth:JwtKey` (≥ 32 characters) | Admin panel login |
+| `Gemini:ApiKey` or `Anthropic:ApiKey` | The agent (if both are set, it uses Gemini). With neither, the rest works and the agent replies that it isn't configured |
+| `Agent:Model` | Override the provider's default model |
+| `WhatsApp:VerifyToken`, `WhatsApp:AppSecret`, `WhatsApp:AccessToken`, `WhatsApp:PhoneNumberId` | Meta app |
+| `Reminders:Enabled`, `Reminders:Template` | Reminders (template approved in Meta) |
+| `Business:Name` | Name the agent uses |
+| `Business:PrivacyUrl`, `Business:Contact` | The business's privacy notice and a phone or email where a person answers; both go in the first message |
+| `Retention:ConversationDays` | Days messages are kept (90 by default) |
+| `Seed:Demo` | Seed the sample barbershop |
 
-## Fuera de alcance por ahora
+## Out of scope for now
 
-Pagos, varios negocios en la misma instancia, audios e imágenes, y una app para el dueño.
+Payments, several businesses on the same instance, audio and images, and an app for the owner.
 
-## Licencia
+## License
 
-MIT, ver [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
