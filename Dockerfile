@@ -5,7 +5,7 @@ RUN dotnet restore src/AgendaBot.Api/AgendaBot.Api.csproj
 COPY src/ src/
 RUN dotnet publish src/AgendaBot.Api -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=build /app .
 # La imagen ya trae ICU y tzdata, que hacen falta para es-DO y America/Santo_Domingo.
